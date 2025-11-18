@@ -33,7 +33,7 @@ uv add dossier
 from dataclasses import dataclass
 import dossier
 
-log = dossier.get_logger()
+log = dossier.get_session()
 
 # Bind info to the logger for the entire session
 log.bind(model="gpt-4", mode="agent", user_id="user_123", experiment="feature_test")
@@ -65,25 +65,25 @@ session_id = logger.get_session_id()
 session_dir = logger.get_session_path()
 ```
 
-## Reusing a logger
+## Reusing a session
 
-`dossier` implements a logger registry similar to Python's standard `logging.getLogger(name)`. This means you can retrieve the same logger instance from anywhere in your application using its `session_id` without needing to pass it around or set global variables.
+`dossier` implements a session registry similar to Python's standard `logging.getLogger(name)`. This means you can retrieve the same session instance from anywhere in your application using its `session_id` without needing to pass it around or set global variables.
 
-**How it works:** Session IDs are simple identifiers (like `"main"`), while log directories are automatically timestamped (like `main_20251118_120000/`). This gives you easy logger retrieval while maintaining chronological log organization.
+**How it works:** Session IDs are simple identifiers (like `"main"`), while log directories are automatically timestamped (like `main_20251118_120000/`). This gives you easy session retrieval while maintaining chronological log organization.
 
 ```python
-from dossier import get_logger
+from dossier import get_session
 
-# First call creates the logger (creates logs/main_TIMESTAMP/)
-logger = get_logger(session_id="main")
+# First call creates the session (creates logs/main_TIMESTAMP/)
+logger = get_session(session_id="main")
 logger.bind(app_version="1.0.0", user_id="user_123")
 
 # Later, anywhere else in your app: this returns the same instance
-logger2 = get_logger(session_id="main")
+logger2 = get_session(session_id="main")
 assert logger is logger2  # True!
 
 # Log to logs/main_NEW_TIMESTAMP/
-logger3 = get_logger(session_id="main", force_new=True)
+logger3 = get_session(session_id="main", force_new=True)
 ```
 
 Sessions are isolated from each other by using different session_ids.
@@ -97,7 +97,7 @@ Dossier allows you to register custom structlog processors for advanced use case
 Simple stateless processors that add fields or transform data:
 
 ```python
-from dossier import get_logger
+from dossier import get_session
 
 # Add a custom field to every log
 def add_hostname(logger, method_name, event_dict):
@@ -111,7 +111,7 @@ def add_environment(logger, method_name, event_dict):
     event_dict["environment"] = os.environ.get("ENV", "development")
     return event_dict
 
-logger = get_logger(
+logger = get_session(
     log_dir="logs",
     processors=[add_hostname, add_environment],
 )
@@ -125,7 +125,7 @@ logger.info("test_event")
 For tracking state across log calls (like token counting, cost tracking, etc.):
 
 ```python
-from dossier import get_logger
+from dossier import get_session
 
 class TokenCounter:
     """Track cumulative token usage across the session"""
@@ -150,7 +150,7 @@ class TokenCounter:
 # Create the counter instance
 counter = TokenCounter()
 
-logger = get_logger(log_dir="logs", processors=[counter])
+logger = get_session(log_dir="logs", processors=[counter])
 logger.bind(model="gpt-4")
 
 # Log token usage
@@ -166,7 +166,7 @@ print(f"Total tokens used: {counter.total_tokens}")  # 450
 Here's a complete cost tracking processor similar to OpenAI's pricing:
 
 ```python
-from dossier import get_logger
+from dossier import get_session
 
 # Pricing per million tokens (USD)
 PRICING = {
@@ -210,7 +210,7 @@ class CostTracker:
 
 # Use the cost tracker
 cost_tracker = CostTracker()
-logger = get_logger(
+logger = get_session(
     log_dir="logs",
     processors=[cost_tracker],
 )
@@ -262,7 +262,3 @@ logger.info(request)  # Auto-unpacks to flat dict
 ## License
 
 Apache 2.0
-
-## TODO
-- instead of get_logger -> start_session()
--
