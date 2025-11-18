@@ -88,11 +88,23 @@ logger3 = get_session(session_id="main", force_new=True)
 
 Sessions are isolated from each other by using different session_ids.
 
-## Custom Processors
+## Namespaced logging
+
+Route logs to different files within the same session using the `namespace` parameter. This is useful for organizing logs by component, worker, or module:
+
+```python
+from dossier import get_session
+
+logger = get_session()  # logs to logs/session_TIMESTAMP/events.jsonl
+
+logger.info("task_started", namespace="worker")  # logs to logs/session_TIMESTAMP/worker.jsonl
+```
+
+## Custom processors
 
 Dossier allows you to register custom structlog processors for advanced use cases like cost tracking, metrics collection, or adding custom fields.
 
-#### Function Processors
+#### Function processors
 
 Simple stateless processors that add fields or transform data:
 
@@ -120,7 +132,7 @@ logger.info("test_event")
 # Output includes: hostname, environment, model
 ```
 
-### Stateful Class Processors
+### Stateful processors
 
 For tracking state across log calls (like token counting, cost tracking, etc.):
 
