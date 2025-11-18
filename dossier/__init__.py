@@ -4,13 +4,18 @@ from beartype.claw import beartype_this_package
 beartype_this_package()
 
 from dossier.dossier import (  # noqa: E402
-    close_logger,
-    get_logger,
+    close_logger,  # deprecated alias
+    close_session,
+    get_logger,  # deprecated alias
+    get_session,
 )
 
-# Note: Dossier class is internal - use get_logger() instead
+# Note: Dossier class is internal - use get_session() instead
 
 __all__ = [
+    "get_session",
+    "close_session",
+    # Backward compatibility
     "get_logger",
     "close_logger",
 ]

@@ -71,7 +71,7 @@ class Dossier:
         file_handler: logging.FileHandler,
         stdlib_logger_name: str,
     ) -> None:
-        """Internal initialization - use get_logger() instead."""
+        """Internal initialization - use get_session() instead."""
         self._logger = logger
         self.session_id = session_id
         self.session_dir = session_dir
@@ -151,20 +151,20 @@ class Dossier:
         pass  # Needed for context manager
 
 
-def get_logger(
+def get_session(
     log_dir: str | Path = "logs",
     session_id: str | None = None,
     processors: list[Any] | None = None,
     force_new: bool = False,
 ) -> Dossier:
     """
-    Get or create a dossier logger. Returns existing logger if session_id already exists.
+    Get or create a dossier logging session. Returns existing session if session_id already exists.
 
-    Similar to logging.getLogger(name), this function caches logger instances by session_id.
+    Similar to logging.getLogger(name), this function caches session instances by session_id.
     Subsequent calls with the same session_id return the cached instance.
 
     The session_id is user-facing and simple (e.g., "main", "production"), while the actual
-    log directory is timestamped (e.g., "main_20251118_120000/"). This allows easy logger
+    log directory is timestamped (e.g., "main_20251118_120000/"). This allows easy session
     retrieval while maintaining chronological organization of log files.
 
     Args:
@@ -180,23 +180,23 @@ def get_logger(
 
     Example:
         # Simple session ID, timestamped directory created automatically
-        logger = get_logger(session_id="main")
+        logger = get_session(session_id="main")
         # Creates: logs/main_20251118_120000/events.jsonl
 
         # Subsequent calls return the same instance
-        logger2 = get_logger(session_id="main")
+        logger2 = get_session(session_id="main")
         assert logger is logger2  # True! No timestamp needed.
 
         # Force new session - creates new timestamped directory
-        logger3 = get_logger(session_id="main", force_new=True)
+        logger3 = get_session(session_id="main", force_new=True)
         # Creates: logs/main_20251118_130000/events.jsonl
         # Now logger3 is cached under "main"
 
-        logger4 = get_logger(session_id="main")
+        logger4 = get_session(session_id="main")
         assert logger3 is logger4  # Returns the newer instance
 
         # With context manager
-        with get_logger(session_id="task1") as logger:
+        with get_session(session_id="task1") as logger:
             logger.bind(model="gpt-4")
             logger.info("test_event")
     """
@@ -278,25 +278,25 @@ def get_logger(
     return dossier
 
 
-def close_logger(session_id: str) -> None:
+def close_session(session_id: str) -> None:
     """
-    Close and remove logger from cache.
+    Close and remove session from cache.
 
-    This properly closes file handlers and removes the logger from the cache.
+    This properly closes file handlers and removes the session from the cache.
     Useful for cleanup or when you want to start fresh with the same session_id.
 
     Args:
-        session_id: The session ID of the logger to close
+        session_id: The session ID of the session to close
 
     Example:
-        logger = get_logger(session_id="main")
+        logger = get_session(session_id="main")
         logger.info("test_event")
 
         # Clean up when done
-        close_logger("main")
+        close_session("main")
 
-        # Now get_logger will create a fresh instance
-        logger2 = get_logger(session_id="main")
+        # Now get_session will create a fresh instance
+        logger2 = get_session(session_id="main")
         assert logger is not logger2  # True
     """
     if session_id in _logger_cache:
@@ -309,3 +309,8 @@ def close_logger(session_id: str) -> None:
         for handler in stdlib_logger.handlers[:]:
             handler.close()
             stdlib_logger.removeHandler(handler)
+
+
+# Backward compatibility aliases
+get_logger = get_session
+close_logger = close_session
