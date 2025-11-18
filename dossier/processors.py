@@ -99,21 +99,17 @@ def object_unpacking_processor(
         if is_dataclass(obj) and not isinstance(obj, type):
             return asdict(obj)
 
-        # Handle Pydantic models
-        if hasattr(obj, "model_dump"):
-            result: dict[str, Any] = obj.model_dump()
-            return result
-
         # Handle plain dicts
         if isinstance(obj, dict):
             return obj
 
-        # Handle objects with __dict__
-        if hasattr(obj, "__dict__"):
-            return {k: v for k, v in obj.__dict__.items() if not k.startswith("_")}
+        # Try Pydantic model_dump - will raise AttributeError if not available
+        if callable(getattr(obj, "model_dump", None)):
+            result: dict[str, Any] = obj.model_dump()
+            return result
 
-        # Can't flatten - return as-is (will be handled by make_json_safe later)
-        return {"value": obj}
+        # Try to extract __dict__ - will raise AttributeError if not available
+        return {k: v for k, v in obj.__dict__.items() if not k.startswith("_")}
 
     # Process each value in the event dict
     new_dict = {}
@@ -121,26 +117,17 @@ def object_unpacking_processor(
         # Special handling for _obj key (object passed directly to logger)
         if key == "_obj":
             # Unpack directly without prefix
-            if isinstance(value, (str, int, float, bool, type(None), list, dict)):
-                # Primitive - this shouldn't happen but handle it
-                new_dict["_obj"] = value
-            else:
-                flattened = flatten_object(value)
-                new_dict.update(flattened)
+            flattened = flatten_object(value)
+            new_dict.update(flattened)
             continue
 
         # Skip primitives and collections
         if isinstance(value, (str, int, float, bool, type(None), list, dict)):
             new_dict[key] = value
         else:
-            # Try to flatten the object
+            # Flatten the object and add prefix to avoid collisions
             flattened = flatten_object(value)
-            # If flattening resulted in single 'value' key, unwrap it
-            if len(flattened) == 1 and "value" in flattened:
-                new_dict[key] = flattened["value"]
-            else:
-                # Multiple keys: add prefix to avoid collisions
-                for k, v in flattened.items():
-                    new_dict[f"{key}_{k}"] = v
+            for k, v in flattened.items():
+                new_dict[f"{key}_{k}"] = v
 
     return new_dict

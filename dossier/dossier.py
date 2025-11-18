@@ -124,11 +124,11 @@ class Dossier:
         self._logger = self._logger.unbind(*keys)
         return self
 
-    def get_session_path(self) -> Path | None:
+    def get_session_path(self) -> Path:
         """Get the path to the current session directory."""
         return self.session_dir
 
-    def get_session_id(self) -> str | None:
+    def get_session_id(self) -> str:
         """Get the current session ID."""
         return self.session_id
 
