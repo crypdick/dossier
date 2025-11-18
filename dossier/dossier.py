@@ -69,12 +69,14 @@ class Dossier:
         session_id: str,
         session_dir: Path,
         file_handler: logging.FileHandler,
+        stdlib_logger_name: str,
     ) -> None:
         """Internal initialization - use get_logger() instead."""
         self._logger = logger
         self.session_id = session_id
         self.session_dir = session_dir
         self._file_handler = file_handler
+        self._stdlib_logger_name = stdlib_logger_name
 
     @infer_event
     def info(self, event: str | Any | None = None, **kwargs: Any) -> Any:
@@ -151,7 +153,6 @@ class Dossier:
 
 def get_logger(
     log_dir: str | Path = "logs",
-    session_prefix: str = "session_",
     session_id: str | None = None,
     processors: list[Any] | None = None,
     force_new: bool = False,
@@ -162,41 +163,37 @@ def get_logger(
     Similar to logging.getLogger(name), this function caches logger instances by session_id.
     Subsequent calls with the same session_id return the cached instance.
 
+    The session_id is user-facing and simple (e.g., "main", "production"), while the actual
+    log directory is timestamped (e.g., "main_20251118_120000/"). This allows easy logger
+    retrieval while maintaining chronological organization of log files.
+
     Args:
         log_dir: Directory to store log files
-        session_prefix: Prefix for session directory names
-        session_id: Optional session ID (auto-generated if None). Used as cache key.
+        session_id: Simple session identifier (e.g., "main", "worker"). If None, defaults
+                   to "session". Used as cache key.
         processors: Optional list of custom structlog processors
-        force_new: If True, creates new logger even if session_id exists in cache
+        force_new: If True, creates new timestamped log directory even if session_id exists
+                  in cache. Useful for restarting sessions with same name.
 
     Returns:
         Started Dossier instance (either cached or newly created)
 
     Example:
-        # Basic usage - first call creates it
+        # Simple session ID, timestamped directory created automatically
         logger = get_logger(session_id="main")
-        logger.bind(model="gpt-4", user_id="user_123")
-        logger.info("user_message", content="Hello")
+        # Creates: logs/main_20251118_120000/events.jsonl
 
         # Subsequent calls return the same instance
         logger2 = get_logger(session_id="main")
-        assert logger is logger2  # True!
+        assert logger is logger2  # True! No timestamp needed.
 
-        # Force a new logger even with same session_id
+        # Force new session - creates new timestamped directory
         logger3 = get_logger(session_id="main", force_new=True)
-        assert logger is not logger3  # True
+        # Creates: logs/main_20251118_130000/events.jsonl
+        # Now logger3 is cached under "main"
 
-        # With custom processors
-        def add_hostname(logger, method_name, event_dict):
-            import socket
-            event_dict["hostname"] = socket.gethostname()
-            return event_dict
-
-        logger = get_logger(
-            session_id="production",
-            log_dir="logs",
-            processors=[add_hostname],
-        )
+        logger4 = get_logger(session_id="main")
+        assert logger3 is logger4  # Returns the newer instance
 
         # With context manager
         with get_logger(session_id="task1") as logger:
@@ -207,16 +204,19 @@ def get_logger(
     log_dir_path = Path(log_dir)
     log_dir_path.mkdir(parents=True, exist_ok=True)
 
-    # Generate session ID if not provided
-    now = datetime.now()
+    # Default session ID if not provided
     if session_id is None:
-        session_id = f"{session_prefix}{now.strftime('%Y%m%d_%H%M%S')}"
+        session_id = "session"
 
     # Return cached logger if exists (unless force_new)
     if not force_new and session_id in _logger_cache:
         return cast(Dossier, _logger_cache[session_id])
 
-    session_dir = log_dir_path / session_id
+    # Create timestamped directory name (session_id + underscore + timestamp)
+    now = datetime.now()
+    timestamp_suffix = now.strftime("%Y%m%d_%H%M%S")
+    timestamped_dir_name = f"{session_id}_{timestamp_suffix}"
+    session_dir = log_dir_path / timestamped_dir_name
     session_dir.mkdir(parents=True, exist_ok=True)
 
     # Prepare session metadata with timestamp
@@ -230,8 +230,8 @@ def get_logger(
     handler = logging.FileHandler(log_file)
     handler.setFormatter(logging.Formatter("%(message)s"))
 
-    # Configure standard library logger
-    stdlib_logger_name = f"session.{session_id}"
+    # Configure standard library logger (use timestamped name to avoid conflicts)
+    stdlib_logger_name = f"session.{timestamped_dir_name}"
     stdlib_logger = logging.getLogger(stdlib_logger_name)
     stdlib_logger.handlers.clear()
     stdlib_logger.addHandler(handler)
@@ -269,9 +269,10 @@ def get_logger(
         session_id=session_id,
         session_dir=session_dir,
         file_handler=handler,
+        stdlib_logger_name=stdlib_logger_name,
     )
 
-    # Cache before returning
+    # Cache before returning (using user-facing session_id as key)
     _logger_cache[session_id] = dossier
 
     return dossier
@@ -303,9 +304,8 @@ def close_logger(session_id: str) -> None:
         # Close file handler
         logger._file_handler.close()
 
-        # Clean up stdlib logger handlers
-        stdlib_logger_name = f"session.{session_id}"
-        stdlib_logger = logging.getLogger(stdlib_logger_name)
+        # Clean up stdlib logger handlers (use the stored stdlib logger name)
+        stdlib_logger = logging.getLogger(logger._stdlib_logger_name)
         for handler in stdlib_logger.handlers[:]:
             handler.close()
             stdlib_logger.removeHandler(handler)

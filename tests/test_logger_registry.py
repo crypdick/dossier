@@ -66,21 +66,21 @@ def test_force_new_updates_cache(tmp_path):
     assert logger1 is not logger3
 
 
-def test_auto_generated_session_ids_are_unique(tmp_path):
-    """Test that auto-generated session IDs create different loggers."""
-    import time
-
-    # When session_id is None, each call generates a unique timestamp-based ID
+def test_default_session_id(tmp_path):
+    """Test that session_id defaults to 'session' when not provided."""
+    # When session_id is None, it defaults to "session"
     logger1 = get_logger(log_dir=tmp_path)
+    assert logger1.session_id == "session"
 
-    # Wait 1 second to ensure different timestamp
-    time.sleep(1)
-
+    # Subsequent calls return the same cached logger
     logger2 = get_logger(log_dir=tmp_path)
+    assert logger1 is logger2
+    assert logger2.session_id == "session"
 
-    # Should be different objects with different session_ids
-    assert logger1 is not logger2
-    assert logger1.session_id != logger2.session_id
+    # To get a new session without specifying ID, use force_new
+    logger3 = get_logger(log_dir=tmp_path, force_new=True)
+    assert logger1 is not logger3
+    assert logger3.session_id == "session"  # Same ID, different instance
 
 
 def test_cached_logger_retains_bound_context(tmp_path):
@@ -97,8 +97,8 @@ def test_cached_logger_retains_bound_context(tmp_path):
     # Log with the cached logger - should include bound context
     logger2.info("test_event")
 
-    # Verify log file has the bound context
-    log_file = tmp_path / "test_session" / "events.jsonl"
+    # Verify log file has the bound context (in timestamped directory)
+    log_file = logger1.get_session_path() / "events.jsonl"
     assert log_file.exists()
 
     import json
@@ -151,8 +151,8 @@ def test_close_logger_cleans_up_stdlib_logger(tmp_path):
     """Test that close_logger cleans up stdlib logger handlers."""
     logger = get_logger(log_dir=tmp_path, session_id="test_session")
 
-    # Get the stdlib logger
-    stdlib_logger_name = f"session.{logger.session_id}"
+    # Get the stdlib logger (using internal name which is timestamped)
+    stdlib_logger_name = logger._stdlib_logger_name
     stdlib_logger = logging.getLogger(stdlib_logger_name)
 
     # Should have handlers
@@ -176,14 +176,21 @@ def test_close_logger_nonexistent_session(tmp_path):
 
 def test_close_logger_and_recreate(tmp_path):
     """Test that we can close a logger and recreate it with same session_id."""
+    import json
+    import time
+
     # Create logger and log something
     logger1 = get_logger(log_dir=tmp_path, session_id="test_session")
     logger1.info("first_event")
+    log_file1 = logger1.get_session_path() / "events.jsonl"
 
     # Close it
     close_logger("test_session")
 
-    # Create new logger with same session_id
+    # Wait to ensure different timestamp
+    time.sleep(1.1)
+
+    # Create new logger with same session_id (creates new timestamped directory)
     logger2 = get_logger(log_dir=tmp_path, session_id="test_session")
 
     # Should be a different instance
@@ -191,17 +198,22 @@ def test_close_logger_and_recreate(tmp_path):
 
     # Log with new logger
     logger2.info("second_event")
+    log_file2 = logger2.get_session_path() / "events.jsonl"
 
-    # Log file should have both events
-    log_file = tmp_path / "test_session" / "events.jsonl"
+    # Should have different log files (different timestamped directories)
+    assert log_file1 != log_file2
 
-    import json
-
-    with open(log_file) as f:
+    # First log file should have first event only
+    with open(log_file1) as f:
         lines = f.readlines()
-        assert len(lines) == 2
+        assert len(lines) == 1
         assert json.loads(lines[0])["event"] == "first_event"
-        assert json.loads(lines[1])["event"] == "second_event"
+
+    # Second log file should have second event only
+    with open(log_file2) as f:
+        lines = f.readlines()
+        assert len(lines) == 1
+        assert json.loads(lines[0])["event"] == "second_event"
 
 
 def test_cache_survives_bind_and_unbind(tmp_path):
@@ -265,6 +277,8 @@ def test_close_one_logger_doesnt_affect_others(tmp_path):
 
 def test_registry_pattern_usage(tmp_path):
     """Test the stdlib-like registry pattern in action."""
+    import json
+
     # First call anywhere in app
     logger = get_logger(log_dir=tmp_path, session_id="main")
     logger.bind(app_version="1.0.0")
@@ -277,10 +291,8 @@ def test_registry_pattern_usage(tmp_path):
     # Still has the bound context
     logger2.info("processing_request")
 
-    # Verify both events have the bound context
-    log_file = tmp_path / "main" / "events.jsonl"
-
-    import json
+    # Verify both events have the bound context (in timestamped directory)
+    log_file = logger.get_session_path() / "events.jsonl"
 
     with open(log_file) as f:
         lines = f.readlines()
@@ -297,6 +309,7 @@ def test_registry_pattern_usage(tmp_path):
 
 def test_processors_parameter_with_cache(tmp_path):
     """Test that processors parameter is only used on first call."""
+    import json
 
     def custom_processor(logger, method_name, event_dict):
         event_dict["custom_flag"] = True
@@ -316,9 +329,7 @@ def test_processors_parameter_with_cache(tmp_path):
     assert logger1 is logger2
 
     # Both logs should have custom_flag (because it's the same logger)
-    log_file = tmp_path / "test_session" / "events.jsonl"
-
-    import json
+    log_file = logger1.get_session_path() / "events.jsonl"
 
     with open(log_file) as f:
         lines = f.readlines()
@@ -334,6 +345,7 @@ def test_context_manager_with_cache(tmp_path):
     # First use with context manager
     with get_logger(log_dir=tmp_path, session_id="test_session") as logger1:
         logger1.info("event1")
+        log_path = logger1.get_session_path()
 
     # Second use - should get cached logger
     with get_logger(log_dir=tmp_path, session_id="test_session") as logger2:
@@ -343,7 +355,7 @@ def test_context_manager_with_cache(tmp_path):
     assert logger1 is logger2
 
     # Both events should be logged
-    log_file = tmp_path / "test_session" / "events.jsonl"
+    log_file = log_path / "events.jsonl"
 
     with open(log_file) as f:
         lines = f.readlines()
@@ -356,6 +368,7 @@ def test_cache_key_is_session_id_only(tmp_path, tmp_path_factory):
 
     # Create logger with specific log_dir
     logger1 = get_logger(log_dir=tmp_path, session_id="test_session")
+    session_path1 = logger1.get_session_path()
 
     # Get logger with different log_dir but same session_id
     logger2 = get_logger(log_dir=tmp_path2, session_id="test_session")
@@ -363,6 +376,7 @@ def test_cache_key_is_session_id_only(tmp_path, tmp_path_factory):
     # Should return cached logger (log_dir is ignored on cache hit)
     assert logger1 is logger2
 
-    # Should still use original log_dir
-    assert logger1.get_session_path() == tmp_path / "test_session"
-    assert logger2.get_session_path() == tmp_path / "test_session"
+    # Should still use original log_dir (timestamped directory under tmp_path)
+    assert logger1.get_session_path() == session_path1
+    assert logger2.get_session_path() == session_path1
+    assert str(session_path1).startswith(str(tmp_path / "test_session_"))

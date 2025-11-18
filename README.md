@@ -69,10 +69,12 @@ session_dir = logger.get_session_path()
 
 `dossier` implements a logger registry similar to Python's standard `logging.getLogger(name)`. This means you can retrieve the same logger instance from anywhere in your application using its `session_id` without needing to pass it around or set global variables.
 
+**How it works:** Session IDs are simple identifiers (like `"main"`), while log directories are automatically timestamped (like `main_20251118_120000/`). This gives you easy logger retrieval while maintaining chronological log organization.
+
 ```python
 from dossier import get_logger
 
-# First call creates the logger
+# First call creates the logger (creates logs/main_TIMESTAMP/)
 logger = get_logger(session_id="main")
 logger.bind(app_version="1.0.0", user_id="user_123")
 
@@ -80,11 +82,11 @@ logger.bind(app_version="1.0.0", user_id="user_123")
 logger2 = get_logger(session_id="main")
 assert logger is logger2  # True!
 
-# Force a new session:
+# Log to logs/main_NEW_TIMESTAMP/
 logger3 = get_logger(session_id="main", force_new=True)
 ```
 
-This also means that you that the sessions are isolated from each other by using different session_ids.
+Sessions are isolated from each other by using different session_ids.
 
 ## Custom Processors
 
