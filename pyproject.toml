@@ -4,6 +4,20 @@ version = "0.1.0"
 description = "A logging library for AI agents"
 readme = "README.md"
 requires-python = ">=3.13"
+license = "Apache-2.0"
+authors = [
+    { name = "Ricardo Decal", email = "dossier-project@ricardodecal.com" }
+]
+keywords = ["logging", "structlog", "ai", "agents", "session-management"]
+classifiers = [
+    "Development Status :: 3 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Logging",
+]
 # Do not edit manually. Use `uv add <dep>` and `uv remove <dep>`
 dependencies = [
     "beartype>=0.22.5",
@@ -11,6 +25,11 @@ dependencies = [
     "rich>=14.2.0",
     "structlog>=25.5.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/crypdick/dossier"
+Repository = "https://github.com/crypdick/dossier"
+Issues = "https://github.com/crypdick/dossier/issues"
 
 [dependency-groups]
 # Note: use `uvx pre-commit run --all-files` to run the pre-commit hooks
@@ -92,3 +111,11 @@ lint.extend-select = ["PLC0415"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["PLC0415"]
 "**/test_*.py" = ["PLC0415"]
+
+[build-system]
+requires = ["uv_build>=0.9.2,<0.10.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "dossier"
+module-root = ""

@@ -236,7 +236,7 @@ logger.info(request)  # Auto-unpacks to flat dict
 
 ## License
 
-MIT
+Apache 2.0
 
 ## TODO
 - test with https://pypi.org/project/pytest-structlog/
