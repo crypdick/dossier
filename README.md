@@ -65,7 +65,26 @@ session_id = logger.get_session_id()
 session_dir = logger.get_session_path()
 ```
 
+## Reusing a logger
 
+`dossier` implements a logger registry similar to Python's standard `logging.getLogger(name)`. This means you can retrieve the same logger instance from anywhere in your application using its `session_id` without needing to pass it around or set global variables.
+
+```python
+from dossier import get_logger
+
+# First call creates the logger
+logger = get_logger(session_id="main")
+logger.bind(app_version="1.0.0", user_id="user_123")
+
+# Later, anywhere else in your app: this returns the same instance
+logger2 = get_logger(session_id="main")
+assert logger is logger2  # True!
+
+# Force a new session:
+logger3 = get_logger(session_id="main", force_new=True)
+```
+
+This also means that you that the sessions are isolated from each other by using different session_ids.
 
 ## Custom Processors
 
@@ -242,5 +261,5 @@ logger.info(request)  # Auto-unpacks to flat dict
 Apache 2.0
 
 ## TODO
-- test with https://pypi.org/project/pytest-structlog/
+- instead of get_logger -> start_session()
 -

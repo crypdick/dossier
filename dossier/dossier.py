@@ -3,7 +3,7 @@ import logging
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import structlog
 
@@ -13,6 +13,9 @@ from dossier.processors import (
     unpack_generic_objects,
     unpack_pydantic_models,
 )
+
+# Module-level cache for logger instances (similar to logging.getLogger)
+_logger_cache: dict[str, Any] = {}
 
 
 def _infer_event_type_from_object(obj: Any) -> str | None:
@@ -151,24 +154,37 @@ def get_logger(
     session_prefix: str = "session_",
     session_id: str | None = None,
     processors: list[Any] | None = None,
+    force_new: bool = False,
 ) -> Dossier:
     """
-    Create and start a new dossier logger.
+    Get or create a dossier logger. Returns existing logger if session_id already exists.
+
+    Similar to logging.getLogger(name), this function caches logger instances by session_id.
+    Subsequent calls with the same session_id return the cached instance.
 
     Args:
         log_dir: Directory to store log files
         session_prefix: Prefix for session directory names
-        session_id: Optional session ID (auto-generated if None)
+        session_id: Optional session ID (auto-generated if None). Used as cache key.
         processors: Optional list of custom structlog processors
+        force_new: If True, creates new logger even if session_id exists in cache
 
     Returns:
-        Started Dossier instance
+        Started Dossier instance (either cached or newly created)
 
     Example:
-        # Basic usage
-        logger = get_logger(log_dir="logs")
+        # Basic usage - first call creates it
+        logger = get_logger(session_id="main")
         logger.bind(model="gpt-4", user_id="user_123")
         logger.info("user_message", content="Hello")
+
+        # Subsequent calls return the same instance
+        logger2 = get_logger(session_id="main")
+        assert logger is logger2  # True!
+
+        # Force a new logger even with same session_id
+        logger3 = get_logger(session_id="main", force_new=True)
+        assert logger is not logger3  # True
 
         # With custom processors
         def add_hostname(logger, method_name, event_dict):
@@ -177,12 +193,13 @@ def get_logger(
             return event_dict
 
         logger = get_logger(
+            session_id="production",
             log_dir="logs",
             processors=[add_hostname],
         )
 
         # With context manager
-        with get_logger() as logger:
+        with get_logger(session_id="task1") as logger:
             logger.bind(model="gpt-4")
             logger.info("test_event")
     """
@@ -190,10 +207,14 @@ def get_logger(
     log_dir_path = Path(log_dir)
     log_dir_path.mkdir(parents=True, exist_ok=True)
 
-    # Generate session ID
+    # Generate session ID if not provided
     now = datetime.now()
     if session_id is None:
         session_id = f"{session_prefix}{now.strftime('%Y%m%d_%H%M%S')}"
+
+    # Return cached logger if exists (unless force_new)
+    if not force_new and session_id in _logger_cache:
+        return cast(Dossier, _logger_cache[session_id])
 
     session_dir = log_dir_path / session_id
     session_dir.mkdir(parents=True, exist_ok=True)
@@ -250,4 +271,41 @@ def get_logger(
         file_handler=handler,
     )
 
+    # Cache before returning
+    _logger_cache[session_id] = dossier
+
     return dossier
+
+
+def close_logger(session_id: str) -> None:
+    """
+    Close and remove logger from cache.
+
+    This properly closes file handlers and removes the logger from the cache.
+    Useful for cleanup or when you want to start fresh with the same session_id.
+
+    Args:
+        session_id: The session ID of the logger to close
+
+    Example:
+        logger = get_logger(session_id="main")
+        logger.info("test_event")
+
+        # Clean up when done
+        close_logger("main")
+
+        # Now get_logger will create a fresh instance
+        logger2 = get_logger(session_id="main")
+        assert logger is not logger2  # True
+    """
+    if session_id in _logger_cache:
+        logger = _logger_cache.pop(session_id)
+        # Close file handler
+        logger._file_handler.close()
+
+        # Clean up stdlib logger handlers
+        stdlib_logger_name = f"session.{session_id}"
+        stdlib_logger = logging.getLogger(stdlib_logger_name)
+        for handler in stdlib_logger.handlers[:]:
+            handler.close()
+            stdlib_logger.removeHandler(handler)

@@ -4,6 +4,7 @@ from beartype.claw import beartype_this_package
 beartype_this_package()
 
 from dossier.dossier import (  # noqa: E402
+    close_logger,
     get_logger,
 )
 
@@ -11,4 +12,5 @@ from dossier.dossier import (  # noqa: E402
 
 __all__ = [
     "get_logger",
+    "close_logger",
 ]
