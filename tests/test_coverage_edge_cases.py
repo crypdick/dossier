@@ -6,12 +6,12 @@ from dataclasses import dataclass
 import pytest
 from pydantic import BaseModel
 
-from dossier import get_logger
+from dossier import get_session
 
 
 def test_debug_method(tmp_path):
     """Test the debug() log level method (line 89)."""
-    logger = get_logger(log_dir=tmp_path / "logs")
+    logger = get_session(log_dir=tmp_path / "logs")
     logger.debug("debug_event", detail="testing debug level")
 
     # Verify the event was logged with debug level
@@ -26,7 +26,7 @@ def test_debug_method(tmp_path):
 
 def test_event_none_raises_error(tmp_path):
     """Test that passing None as event raises ValueError (line 48)."""
-    logger = get_logger(log_dir=tmp_path / "logs")
+    logger = get_session(log_dir=tmp_path / "logs")
 
     with pytest.raises(ValueError, match="Must provide event string or object"):
         logger.info(None)
@@ -34,7 +34,7 @@ def test_event_none_raises_error(tmp_path):
 
 def test_primitive_event_raises_error(tmp_path):
     """Test that passing a primitive as event raises ValueError (lines 21, 42-43)."""
-    logger = get_logger(log_dir=tmp_path / "logs")
+    logger = get_session(log_dir=tmp_path / "logs")
 
     # Test with string (should work normally)
     logger.info("string_event")  # This should work
@@ -77,7 +77,7 @@ def test_primitive_event_raises_error(tmp_path):
 
 def test_context_manager(tmp_path):
     """Test using logger as a context manager (line 141)."""
-    with get_logger(log_dir=tmp_path / "logs") as logger:
+    with get_session(log_dir=tmp_path / "logs") as logger:
         logger.info("context_event", data="inside context manager")
 
     # Verify the event was logged
@@ -91,7 +91,7 @@ def test_context_manager(tmp_path):
 
 def test_tuple_processing(tmp_path):
     """Test that tuples are processed correctly in processors (line 17)."""
-    logger = get_logger(log_dir=tmp_path / "logs")
+    logger = get_session(log_dir=tmp_path / "logs")
 
     # Log with tuple data
     logger.info("tuple_event", tuple_data=(1, 2, 3, "four"))
@@ -108,7 +108,7 @@ def test_tuple_processing(tmp_path):
 
 def test_nested_tuple_processing(tmp_path):
     """Test nested tuples in data structures (line 17)."""
-    logger = get_logger(log_dir=tmp_path / "logs")
+    logger = get_session(log_dir=tmp_path / "logs")
 
     # Log with nested tuple data
     logger.info(
@@ -144,7 +144,7 @@ def test_generic_object_with_dataclass_field(tmp_path):
             self.inner = InnerData(value=42)
             self.name = "test"
 
-    logger = get_logger(log_dir=tmp_path / "logs")
+    logger = get_session(log_dir=tmp_path / "logs")
     obj = OuterObject()
     logger.info(obj)
 
@@ -177,7 +177,7 @@ def test_generic_object_with_pydantic_field(tmp_path):
             self.inner = InnerModel(value=99)
             self.name = "test"
 
-    logger = get_logger(log_dir=tmp_path / "logs")
+    logger = get_session(log_dir=tmp_path / "logs")
     obj = OuterObject()
     logger.info(obj)
 
@@ -195,7 +195,7 @@ def test_generic_object_with_pydantic_field(tmp_path):
 
 def test_warning_method(tmp_path):
     """Test the warning() log level method for completeness."""
-    logger = get_logger(log_dir=tmp_path / "logs")
+    logger = get_session(log_dir=tmp_path / "logs")
     logger.warning("warning_event", detail="testing warning level")
 
     # Verify the event was logged with warning level
@@ -210,7 +210,7 @@ def test_warning_method(tmp_path):
 
 def test_error_method(tmp_path):
     """Test the error() log level method for completeness."""
-    logger = get_logger(log_dir=tmp_path / "logs")
+    logger = get_session(log_dir=tmp_path / "logs")
     logger.error("error_event", detail="testing error level")
 
     # Verify the event was logged with error level
@@ -234,7 +234,7 @@ def test_dataclass_in_list_with_generic_object(tmp_path):
         def __init__(self):
             self.items = [Item(id=1), Item(id=2)]
 
-    logger = get_logger(log_dir=tmp_path / "logs")
+    logger = get_session(log_dir=tmp_path / "logs")
     obj = Container()
     logger.info(obj)
 
@@ -256,7 +256,7 @@ def test_pydantic_in_dict_with_generic_object(tmp_path):
         def __init__(self):
             self.values = {"first": Value(amount=100), "second": Value(amount=200)}
 
-    logger = get_logger(log_dir=tmp_path / "logs")
+    logger = get_session(log_dir=tmp_path / "logs")
     obj = Store()
     logger.info(obj)
 

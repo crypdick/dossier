@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from dossier import get_logger
+from dossier import get_session
 from dossier.dossier import Dossier
 
 
@@ -20,7 +20,7 @@ def test_logger() -> Generator[Dossier]:
     """
     with tempfile.TemporaryDirectory() as tmpdir:
         session_id = f"test_{uuid.uuid4().hex[:8]}"
-        logger = get_logger(log_dir=tmpdir, session_id=session_id)
+        logger = get_session(log_dir=tmpdir, session_id=session_id)
         yield logger
 
 

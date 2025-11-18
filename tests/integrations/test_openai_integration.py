@@ -14,7 +14,7 @@ from openai.types.chat.chat_completion import Choice
 from openai.types.chat.chat_completion_message_tool_call import Function
 from openai.types.completion_usage import CompletionUsage
 
-from dossier import get_logger
+from dossier import get_session
 
 
 def read_jsonl_logs(session_dir: Path) -> list[dict]:
@@ -30,7 +30,7 @@ def read_jsonl_logs(session_dir: Path) -> list[dict]:
 def test_chat_completion_message_logging():
     """Test that ChatCompletionMessage objects are properly unpacked and logged."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        logger = get_logger(log_dir=tmpdir, session_id="test_chat_msg")
+        logger = get_session(log_dir=tmpdir, session_id="test_chat_msg")
 
         # Create a ChatCompletionMessage (assistant response)
         msg = ChatCompletionMessage(
@@ -57,7 +57,7 @@ def test_chat_completion_message_logging():
 def test_chat_completion_with_tool_call():
     """Test ChatCompletionMessage with tool calls."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        logger = get_logger(log_dir=tmpdir, session_id="test_tool_call")
+        logger = get_session(log_dir=tmpdir, session_id="test_tool_call")
 
         # Create a message with a tool call
         tool_call = ChatCompletionMessageToolCall(
@@ -93,7 +93,7 @@ def test_chat_completion_with_tool_call():
 def test_completion_usage_logging():
     """Test CompletionUsage objects are properly unpacked."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        logger = get_logger(log_dir=tmpdir, session_id="test_usage")
+        logger = get_session(log_dir=tmpdir, session_id="test_usage")
 
         # Create a CompletionUsage object
         usage = CompletionUsage(
@@ -117,7 +117,7 @@ def test_completion_usage_logging():
 def test_chat_completion_full_response():
     """Test logging a full ChatCompletion response object."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        logger = get_logger(log_dir=tmpdir, session_id="test_completion")
+        logger = get_session(log_dir=tmpdir, session_id="test_completion")
 
         # Create a full ChatCompletion object
         completion = ChatCompletion(
@@ -163,7 +163,7 @@ def test_chat_completion_full_response():
 def test_openai_objects_with_bound_context():
     """Test that bound context is preserved with OpenAI objects."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        logger = get_logger(log_dir=tmpdir, session_id="test_bound_openai")
+        logger = get_session(log_dir=tmpdir, session_id="test_bound_openai")
 
         # Bind some context
         logger.bind(user_id="user_789", conversation_id="conv_abc")
@@ -188,7 +188,7 @@ def test_openai_objects_with_bound_context():
 def test_openai_conversation_flow():
     """Test logging a realistic OpenAI conversation flow."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        logger = get_logger(
+        logger = get_session(
             log_dir=tmpdir,
             session_id="test_conversation",
         )
@@ -289,7 +289,7 @@ def test_openai_conversation_flow():
 def test_openai_streaming_chunks():
     """Test logging OpenAI streaming chunk events."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        logger = get_logger(log_dir=tmpdir, session_id="test_streaming")
+        logger = get_session(log_dir=tmpdir, session_id="test_streaming")
 
         # Simulate streaming chunks (simplified)
         chunks = ["Hello", " world", "!", " How", " can", " I", " help", "?"]
@@ -315,7 +315,7 @@ def test_openai_streaming_chunks():
 def test_openai_error_handling():
     """Test logging OpenAI API errors."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        logger = get_logger(log_dir=tmpdir, session_id="test_error")
+        logger = get_session(log_dir=tmpdir, session_id="test_error")
 
         # Log an API error
         logger.error(
@@ -342,7 +342,7 @@ def test_mixed_openai_and_langchain():
     from langchain_core.messages import HumanMessage
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        logger = get_logger(log_dir=tmpdir, session_id="test_mixed")
+        logger = get_session(log_dir=tmpdir, session_id="test_mixed")
 
         # Log LangChain message
         lc_msg = HumanMessage(content="What's the weather?")

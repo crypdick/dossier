@@ -4,7 +4,7 @@ import logging
 
 import pytest
 
-from dossier import close_logger, get_logger
+from dossier import close_session, get_session
 from dossier.dossier import _logger_cache
 
 
@@ -16,13 +16,13 @@ def clear_cache(tmp_path):
     _logger_cache.clear()
 
 
-def test_get_logger_caches_by_session_id(tmp_path):
-    """Test that get_logger returns the same instance for the same session_id."""
+def test_get_session_caches_by_session_id(tmp_path):
+    """Test that get_session returns the same instance for the same session_id."""
     # First call creates a new logger
-    logger1 = get_logger(log_dir=tmp_path, session_id="test_session")
+    logger1 = get_session(log_dir=tmp_path, session_id="test_session")
 
     # Second call returns the cached instance
-    logger2 = get_logger(log_dir=tmp_path, session_id="test_session")
+    logger2 = get_session(log_dir=tmp_path, session_id="test_session")
 
     # Should be the exact same object
     assert logger1 is logger2
@@ -31,8 +31,8 @@ def test_get_logger_caches_by_session_id(tmp_path):
 
 def test_different_session_ids_create_different_loggers(tmp_path):
     """Test that different session_ids create different logger instances."""
-    logger1 = get_logger(log_dir=tmp_path, session_id="session1")
-    logger2 = get_logger(log_dir=tmp_path, session_id="session2")
+    logger1 = get_session(log_dir=tmp_path, session_id="session1")
+    logger2 = get_session(log_dir=tmp_path, session_id="session2")
 
     # Should be different objects
     assert logger1 is not logger2
@@ -41,10 +41,10 @@ def test_different_session_ids_create_different_loggers(tmp_path):
 
 def test_force_new_bypasses_cache(tmp_path):
     """Test that force_new=True creates a new logger even if session_id exists."""
-    logger1 = get_logger(log_dir=tmp_path, session_id="test_session")
+    logger1 = get_session(log_dir=tmp_path, session_id="test_session")
 
     # force_new should create a new instance
-    logger2 = get_logger(log_dir=tmp_path, session_id="test_session", force_new=True)
+    logger2 = get_session(log_dir=tmp_path, session_id="test_session", force_new=True)
 
     # Should be different objects
     assert logger1 is not logger2
@@ -53,13 +53,13 @@ def test_force_new_bypasses_cache(tmp_path):
 
 def test_force_new_updates_cache(tmp_path):
     """Test that force_new=True updates the cache with the new logger."""
-    logger1 = get_logger(log_dir=tmp_path, session_id="test_session")
+    logger1 = get_session(log_dir=tmp_path, session_id="test_session")
 
     # force_new creates a new instance and updates cache
-    logger2 = get_logger(log_dir=tmp_path, session_id="test_session", force_new=True)
+    logger2 = get_session(log_dir=tmp_path, session_id="test_session", force_new=True)
 
     # Third call should return logger2 (the new one)
-    logger3 = get_logger(log_dir=tmp_path, session_id="test_session")
+    logger3 = get_session(log_dir=tmp_path, session_id="test_session")
 
     assert logger1 is not logger2
     assert logger2 is logger3
@@ -69,27 +69,27 @@ def test_force_new_updates_cache(tmp_path):
 def test_default_session_id(tmp_path):
     """Test that session_id defaults to 'session' when not provided."""
     # When session_id is None, it defaults to "session"
-    logger1 = get_logger(log_dir=tmp_path)
+    logger1 = get_session(log_dir=tmp_path)
     assert logger1.session_id == "session"
 
     # Subsequent calls return the same cached logger
-    logger2 = get_logger(log_dir=tmp_path)
+    logger2 = get_session(log_dir=tmp_path)
     assert logger1 is logger2
     assert logger2.session_id == "session"
 
     # To get a new session without specifying ID, use force_new
-    logger3 = get_logger(log_dir=tmp_path, force_new=True)
+    logger3 = get_session(log_dir=tmp_path, force_new=True)
     assert logger1 is not logger3
     assert logger3.session_id == "session"  # Same ID, different instance
 
 
 def test_cached_logger_retains_bound_context(tmp_path):
     """Test that cached loggers retain their bound context."""
-    logger1 = get_logger(log_dir=tmp_path, session_id="test_session")
+    logger1 = get_session(log_dir=tmp_path, session_id="test_session")
     logger1.bind(user_id="user123", model="gpt-4")
 
     # Get cached logger
-    logger2 = get_logger(log_dir=tmp_path, session_id="test_session")
+    logger2 = get_session(log_dir=tmp_path, session_id="test_session")
 
     # Should be same instance with same context
     assert logger1 is logger2
@@ -112,25 +112,25 @@ def test_cached_logger_retains_bound_context(tmp_path):
         assert event["event"] == "test_event"
 
 
-def test_close_logger_removes_from_cache(tmp_path):
-    """Test that close_logger removes the logger from the cache."""
-    logger1 = get_logger(log_dir=tmp_path, session_id="test_session")
+def test_close_session_removes_from_cache(tmp_path):
+    """Test that close_session removes the logger from the cache."""
+    logger1 = get_session(log_dir=tmp_path, session_id="test_session")
 
     # Close the logger
-    close_logger("test_session")
+    close_session("test_session")
 
     # Should be removed from cache
     assert "test_session" not in _logger_cache
 
     # New call should create a new instance
-    logger2 = get_logger(log_dir=tmp_path, session_id="test_session")
+    logger2 = get_session(log_dir=tmp_path, session_id="test_session")
 
     assert logger1 is not logger2
 
 
-def test_close_logger_closes_file_handlers(tmp_path):
-    """Test that close_logger properly closes file handlers."""
-    logger = get_logger(log_dir=tmp_path, session_id="test_session")
+def test_close_session_closes_file_handlers(tmp_path):
+    """Test that close_session properly closes file handlers."""
+    logger = get_session(log_dir=tmp_path, session_id="test_session")
     file_handler = logger._file_handler
 
     # Log something
@@ -141,15 +141,15 @@ def test_close_logger_closes_file_handlers(tmp_path):
     assert not file_handler.stream.closed
 
     # Close the logger
-    close_logger("test_session")
+    close_session("test_session")
 
     # File handler should be closed (stream is set to None after close)
     assert file_handler.stream is None or file_handler.stream.closed
 
 
-def test_close_logger_cleans_up_stdlib_logger(tmp_path):
-    """Test that close_logger cleans up stdlib logger handlers."""
-    logger = get_logger(log_dir=tmp_path, session_id="test_session")
+def test_close_session_cleans_up_stdlib_logger(tmp_path):
+    """Test that close_session cleans up stdlib logger handlers."""
+    logger = get_session(log_dir=tmp_path, session_id="test_session")
 
     # Get the stdlib logger (using internal name which is timestamped)
     stdlib_logger_name = logger._stdlib_logger_name
@@ -159,39 +159,39 @@ def test_close_logger_cleans_up_stdlib_logger(tmp_path):
     assert len(stdlib_logger.handlers) > 0
 
     # Close the logger
-    close_logger("test_session")
+    close_session("test_session")
 
     # Handlers should be removed
     assert len(stdlib_logger.handlers) == 0
 
 
-def test_close_logger_nonexistent_session(tmp_path):
-    """Test that close_logger handles non-existent session gracefully."""
+def test_close_session_nonexistent_session(tmp_path):
+    """Test that close_session handles non-existent session gracefully."""
     # Should not raise an error
-    close_logger("nonexistent_session")
+    close_session("nonexistent_session")
 
     # Cache should still be empty
     assert "nonexistent_session" not in _logger_cache
 
 
-def test_close_logger_and_recreate(tmp_path):
+def test_close_session_and_recreate(tmp_path):
     """Test that we can close a logger and recreate it with same session_id."""
     import json
     import time
 
     # Create logger and log something
-    logger1 = get_logger(log_dir=tmp_path, session_id="test_session")
+    logger1 = get_session(log_dir=tmp_path, session_id="test_session")
     logger1.info("first_event")
     log_file1 = logger1.get_session_path() / "events.jsonl"
 
     # Close it
-    close_logger("test_session")
+    close_session("test_session")
 
     # Wait to ensure different timestamp
     time.sleep(1.1)
 
     # Create new logger with same session_id (creates new timestamped directory)
-    logger2 = get_logger(log_dir=tmp_path, session_id="test_session")
+    logger2 = get_session(log_dir=tmp_path, session_id="test_session")
 
     # Should be a different instance
     assert logger1 is not logger2
@@ -218,7 +218,7 @@ def test_close_logger_and_recreate(tmp_path):
 
 def test_cache_survives_bind_and_unbind(tmp_path):
     """Test that bind and unbind don't affect cache identity."""
-    logger1 = get_logger(log_dir=tmp_path, session_id="test_session")
+    logger1 = get_session(log_dir=tmp_path, session_id="test_session")
 
     # Bind some context
     result = logger1.bind(user_id="user123")
@@ -227,7 +227,7 @@ def test_cache_survives_bind_and_unbind(tmp_path):
     assert result is logger1
 
     # Getting logger again should still return the same instance
-    logger2 = get_logger(log_dir=tmp_path, session_id="test_session")
+    logger2 = get_session(log_dir=tmp_path, session_id="test_session")
     assert logger1 is logger2
 
     # Unbind
@@ -235,15 +235,15 @@ def test_cache_survives_bind_and_unbind(tmp_path):
     assert result is logger1
 
     # Still same instance
-    logger3 = get_logger(log_dir=tmp_path, session_id="test_session")
+    logger3 = get_session(log_dir=tmp_path, session_id="test_session")
     assert logger1 is logger3
 
 
 def test_multiple_loggers_cached_independently(tmp_path):
     """Test that multiple loggers are cached independently."""
-    logger1 = get_logger(log_dir=tmp_path, session_id="session1")
-    logger2 = get_logger(log_dir=tmp_path, session_id="session2")
-    logger3 = get_logger(log_dir=tmp_path, session_id="session3")
+    logger1 = get_session(log_dir=tmp_path, session_id="session1")
+    logger2 = get_session(log_dir=tmp_path, session_id="session2")
+    logger3 = get_session(log_dir=tmp_path, session_id="session3")
 
     # All should be in cache
     assert "session1" in _logger_cache
@@ -251,19 +251,19 @@ def test_multiple_loggers_cached_independently(tmp_path):
     assert "session3" in _logger_cache
 
     # Retrieving should return same instances
-    assert logger1 is get_logger(log_dir=tmp_path, session_id="session1")
-    assert logger2 is get_logger(log_dir=tmp_path, session_id="session2")
-    assert logger3 is get_logger(log_dir=tmp_path, session_id="session3")
+    assert logger1 is get_session(log_dir=tmp_path, session_id="session1")
+    assert logger2 is get_session(log_dir=tmp_path, session_id="session2")
+    assert logger3 is get_session(log_dir=tmp_path, session_id="session3")
 
 
 def test_close_one_logger_doesnt_affect_others(tmp_path):
     """Test that closing one logger doesn't affect other cached loggers."""
-    logger1 = get_logger(log_dir=tmp_path, session_id="session1")
-    get_logger(log_dir=tmp_path, session_id="session2")
-    logger3 = get_logger(log_dir=tmp_path, session_id="session3")
+    logger1 = get_session(log_dir=tmp_path, session_id="session1")
+    get_session(log_dir=tmp_path, session_id="session2")
+    logger3 = get_session(log_dir=tmp_path, session_id="session3")
 
     # Close logger2
-    close_logger("session2")
+    close_session("session2")
 
     # logger1 and logger3 should still be in cache
     assert "session1" in _logger_cache
@@ -271,8 +271,8 @@ def test_close_one_logger_doesnt_affect_others(tmp_path):
     assert "session3" in _logger_cache
 
     # Retrieving should still work for 1 and 3
-    assert logger1 is get_logger(log_dir=tmp_path, session_id="session1")
-    assert logger3 is get_logger(log_dir=tmp_path, session_id="session3")
+    assert logger1 is get_session(log_dir=tmp_path, session_id="session1")
+    assert logger3 is get_session(log_dir=tmp_path, session_id="session3")
 
 
 def test_registry_pattern_usage(tmp_path):
@@ -280,12 +280,12 @@ def test_registry_pattern_usage(tmp_path):
     import json
 
     # First call anywhere in app
-    logger = get_logger(log_dir=tmp_path, session_id="main")
+    logger = get_session(log_dir=tmp_path, session_id="main")
     logger.bind(app_version="1.0.0")
     logger.info("app_started")
 
     # Later, in different part of code - no need for globals!
-    logger2 = get_logger(session_id="main")  # Returns cached instance
+    logger2 = get_session(session_id="main")  # Returns cached instance
     assert logger is logger2
 
     # Still has the bound context
@@ -316,13 +316,13 @@ def test_processors_parameter_with_cache(tmp_path):
         return event_dict
 
     # First call with processors
-    logger1 = get_logger(
+    logger1 = get_session(
         log_dir=tmp_path, session_id="test_session", processors=[custom_processor]
     )
     logger1.info("test1")
 
     # Second call without processors (should return cached logger)
-    logger2 = get_logger(log_dir=tmp_path, session_id="test_session")
+    logger2 = get_session(log_dir=tmp_path, session_id="test_session")
     logger2.info("test2")
 
     # Should be same instance
@@ -343,12 +343,12 @@ def test_processors_parameter_with_cache(tmp_path):
 def test_context_manager_with_cache(tmp_path):
     """Test that context manager works with cached loggers."""
     # First use with context manager
-    with get_logger(log_dir=tmp_path, session_id="test_session") as logger1:
+    with get_session(log_dir=tmp_path, session_id="test_session") as logger1:
         logger1.info("event1")
         log_path = logger1.get_session_path()
 
     # Second use - should get cached logger
-    with get_logger(log_dir=tmp_path, session_id="test_session") as logger2:
+    with get_session(log_dir=tmp_path, session_id="test_session") as logger2:
         logger2.info("event2")
 
     # Should be same instance
@@ -367,11 +367,11 @@ def test_cache_key_is_session_id_only(tmp_path, tmp_path_factory):
     tmp_path2 = tmp_path_factory.mktemp("logs2")
 
     # Create logger with specific log_dir
-    logger1 = get_logger(log_dir=tmp_path, session_id="test_session")
+    logger1 = get_session(log_dir=tmp_path, session_id="test_session")
     session_path1 = logger1.get_session_path()
 
     # Get logger with different log_dir but same session_id
-    logger2 = get_logger(log_dir=tmp_path2, session_id="test_session")
+    logger2 = get_session(log_dir=tmp_path2, session_id="test_session")
 
     # Should return cached logger (log_dir is ignored on cache hit)
     assert logger1 is logger2

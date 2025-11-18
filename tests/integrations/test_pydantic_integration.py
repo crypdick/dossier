@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from pydantic import BaseModel, Field, field_validator
 
-from dossier import get_logger
+from dossier import get_session
 
 
 def read_jsonl_logs(session_dir: Path) -> list[dict]:
@@ -61,7 +61,7 @@ class ModelWithValidation(BaseModel):
 def test_simple_pydantic_model():
     """Test that simple Pydantic models are properly unpacked and logged."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        logger = get_logger(log_dir=tmpdir, session_id="test_simple_model")
+        logger = get_session(log_dir=tmpdir, session_id="test_simple_model")
 
         # Create and log a simple model
         model = SimpleModel(name="Alice", age=30)
@@ -85,7 +85,7 @@ def test_simple_pydantic_model():
 def test_request_model():
     """Test logging of a more complex request model."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        logger = get_logger(log_dir=tmpdir, session_id="test_request_model")
+        logger = get_session(log_dir=tmpdir, session_id="test_request_model")
 
         # Create and log a request model
         request = RequestModel(
@@ -111,7 +111,7 @@ def test_request_model():
 def test_nested_pydantic_model():
     """Test that nested Pydantic models are properly unpacked."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        logger = get_logger(log_dir=tmpdir, session_id="test_nested_model")
+        logger = get_session(log_dir=tmpdir, session_id="test_nested_model")
 
         # Create nested models
         request = RequestModel(
@@ -139,7 +139,7 @@ def test_nested_pydantic_model():
 def test_pydantic_with_validation():
     """Test models with field validation."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        logger = get_logger(log_dir=tmpdir, session_id="test_validation_model")
+        logger = get_session(log_dir=tmpdir, session_id="test_validation_model")
 
         # Create model with validation (email gets lowercased)
         model = ModelWithValidation(email="Alice@Example.com", score=85)
@@ -158,7 +158,7 @@ def test_pydantic_with_validation():
 def test_pydantic_with_bound_context():
     """Test that bound context is preserved with Pydantic model logging."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        logger = get_logger(log_dir=tmpdir, session_id="test_bound_pydantic")
+        logger = get_session(log_dir=tmpdir, session_id="test_bound_pydantic")
 
         # Bind some context
         logger.bind(environment="production", version="1.2.3")
@@ -181,7 +181,7 @@ def test_pydantic_with_bound_context():
 def test_pydantic_in_kwargs():
     """Test logging Pydantic models as keyword arguments."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        logger = get_logger(log_dir=tmpdir, session_id="test_pydantic_kwargs")
+        logger = get_session(log_dir=tmpdir, session_id="test_pydantic_kwargs")
 
         # Log an event with a Pydantic model as a kwarg
         model = SimpleModel(name="Charlie", age=35)
@@ -203,7 +203,7 @@ def test_pydantic_in_kwargs():
 def test_pydantic_list():
     """Test logging lists of Pydantic models."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        logger = get_logger(log_dir=tmpdir, session_id="test_pydantic_list")
+        logger = get_session(log_dir=tmpdir, session_id="test_pydantic_list")
 
         # Create a list of models
         users = [
@@ -238,7 +238,7 @@ def test_mixed_dataclass_and_pydantic():
         email: str
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        logger = get_logger(log_dir=tmpdir, session_id="test_mixed_models")
+        logger = get_session(log_dir=tmpdir, session_id="test_mixed_models")
 
         # Log events with both types
         pydantic_model = SimpleModel(name="PydanticUser", age=28)
@@ -267,7 +267,7 @@ def test_mixed_dataclass_and_pydantic():
 def test_pydantic_with_default_values():
     """Test that Pydantic models with default values log correctly."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        logger = get_logger(log_dir=tmpdir, session_id="test_defaults")
+        logger = get_session(log_dir=tmpdir, session_id="test_defaults")
 
         # Create model without providing optional fields
         request = RequestModel(method="GET", path="/", body={})
@@ -286,7 +286,7 @@ def test_pydantic_with_default_values():
 def test_complex_pydantic_workflow():
     """Test a realistic workflow with multiple Pydantic models."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        logger = get_logger(
+        logger = get_session(
             log_dir=tmpdir,
             session_id="test_workflow",
         )

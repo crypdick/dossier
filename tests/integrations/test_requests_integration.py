@@ -9,7 +9,7 @@ import pytest
 import requests
 from requests.structures import CaseInsensitiveDict
 
-from dossier import get_logger
+from dossier import get_session
 
 
 def read_jsonl_logs(session_dir: Path) -> list[dict]:
@@ -48,7 +48,7 @@ def create_mock_response(
 def test_response_logging():
     """Test that requests.Response objects are properly unpacked and logged."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        logger = get_logger(log_dir=tmpdir, session_id="test_response")
+        logger = get_session(log_dir=tmpdir, session_id="test_response")
 
         # Create a mock response
         response = create_mock_response(
@@ -73,7 +73,7 @@ def test_response_logging():
 def test_http_request_workflow():
     """Test logging a complete HTTP request/response workflow."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        logger = get_logger(log_dir=tmpdir, session_id="test_http_workflow")
+        logger = get_session(log_dir=tmpdir, session_id="test_http_workflow")
 
         # Log the request
         logger.info(
@@ -121,7 +121,7 @@ def test_http_request_workflow():
 def test_http_error_logging():
     """Test logging HTTP errors."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        logger = get_logger(log_dir=tmpdir, session_id="test_http_error")
+        logger = get_session(log_dir=tmpdir, session_id="test_http_error")
 
         # Log a failed request
         logger.error(
@@ -147,7 +147,7 @@ def test_http_error_logging():
 def test_api_rate_limiting():
     """Test logging API rate limiting scenarios."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        logger = get_logger(log_dir=tmpdir, session_id="test_rate_limit")
+        logger = get_session(log_dir=tmpdir, session_id="test_rate_limit")
 
         # Log rate limit hit
         logger.warning(
@@ -173,7 +173,7 @@ def test_api_rate_limiting():
 def test_http_retry_logic():
     """Test logging HTTP retry attempts."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        logger = get_logger(log_dir=tmpdir, session_id="test_retries")
+        logger = get_session(log_dir=tmpdir, session_id="test_retries")
 
         url = "https://api.example.com/flaky"
 
@@ -220,7 +220,7 @@ def test_http_retry_logic():
 def test_request_with_large_payload():
     """Test logging requests with large payloads (truncation scenario)."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        logger = get_logger(log_dir=tmpdir, session_id="test_large_payload")
+        logger = get_session(log_dir=tmpdir, session_id="test_large_payload")
 
         # Create a large payload
         large_data = {"items": [{"id": i, "data": "x" * 100} for i in range(100)]}
@@ -246,7 +246,7 @@ def test_request_with_large_payload():
 def test_request_headers_logging():
     """Test logging request headers (with sensitive data handling)."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        logger = get_logger(log_dir=tmpdir, session_id="test_headers")
+        logger = get_session(log_dir=tmpdir, session_id="test_headers")
 
         # Log headers (in practice, you'd want to redact sensitive ones)
         headers = {
@@ -275,7 +275,7 @@ def test_request_headers_logging():
 def test_api_pagination_workflow():
     """Test logging API pagination workflow."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        logger = get_logger(log_dir=tmpdir, session_id="test_pagination")
+        logger = get_session(log_dir=tmpdir, session_id="test_pagination")
 
         base_url = "https://api.example.com/items"
 
@@ -315,7 +315,7 @@ def test_api_pagination_workflow():
 def test_webhook_logging():
     """Test logging webhook requests."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        logger = get_logger(log_dir=tmpdir, session_id="test_webhook")
+        logger = get_session(log_dir=tmpdir, session_id="test_webhook")
 
         # Log incoming webhook
         logger.info(
@@ -355,7 +355,7 @@ def test_webhook_logging():
 def test_http_with_bound_context():
     """Test that bound context is preserved with HTTP logging."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        logger = get_logger(log_dir=tmpdir, session_id="test_bound_http")
+        logger = get_session(log_dir=tmpdir, session_id="test_bound_http")
 
         # Bind request context
         logger.bind(request_id="req_abc123", user_id="user_789")
@@ -380,7 +380,7 @@ def test_http_with_bound_context():
 def test_multiple_api_calls_workflow():
     """Test logging multiple API calls in a workflow."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        logger = get_logger(
+        logger = get_session(
             log_dir=tmpdir,
             session_id="test_multi_api",
         )

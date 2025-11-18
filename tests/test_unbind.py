@@ -2,12 +2,12 @@
 
 import json
 
-from dossier import get_logger
+from dossier import get_session
 
 
 def test_unbind_single_key(tmp_path):
     """Test unbinding a single context key"""
-    logger = get_logger(log_dir=tmp_path / "logs")
+    logger = get_session(log_dir=tmp_path / "logs")
     logger.bind(model="gpt-4")
 
     # Add context
@@ -35,7 +35,7 @@ def test_unbind_single_key(tmp_path):
 
 def test_unbind_multiple_keys(tmp_path):
     """Test unbinding multiple keys at once"""
-    logger = get_logger(log_dir=tmp_path / "logs")
+    logger = get_session(log_dir=tmp_path / "logs")
     logger.bind(model="gpt-4")
 
     # Add context
@@ -65,7 +65,7 @@ def test_unbind_multiple_keys(tmp_path):
 
 def test_unbind_chaining(tmp_path):
     """Test chaining unbind with other methods"""
-    logger = get_logger(log_dir=tmp_path / "logs")
+    logger = get_session(log_dir=tmp_path / "logs")
     logger.bind(model="gpt-4")
 
     # Chain bind, unbind, and log
