@@ -129,14 +129,9 @@ def test_message_sequence_logging(test_logger: Dossier):
 
     # Read logs
     logs = read_jsonl_logs(test_logger.get_session_path())
-    session_id = test_logger.get_session_id()
 
     # Should have 5 messages
     assert len(logs) == 5
-
-    # Check session_id is in all logs
-    for log in logs:
-        assert log["session_id"] == session_id
 
     # Metadata bound after session_start, so check logs [1:]
     for log in logs[1:]:

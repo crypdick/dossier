@@ -65,61 +65,96 @@ class Dossier:
 
     def __init__(
         self,
-        logger: Any,  # structlog bound logger (stdlib or generic)
         session_id: str,
         session_dir: Path,
-        file_handler: logging.FileHandler,
-        stdlib_logger_name: str,
+        stdlib_logger_base_name: str,
+        processors: list[Any] | None = None,
     ) -> None:
         """Internal initialization - use get_session() instead."""
-        self._logger = logger
         self.session_id = session_id
         self.session_dir = session_dir
-        self._file_handler = file_handler
-        self._stdlib_logger_name = stdlib_logger_name
+        self._stdlib_logger_base_name = stdlib_logger_base_name
+        self._processors = processors or []
+        self._namespaced_loggers: dict[str, Any] = {}
+
+    def _get_or_create_namespaced_logger(self, namespace: str | None) -> Any:
+        """Get or create a namespaced logger for routing logs to a separate file."""
+        # Default to "events" namespace if None or empty string
+        if not namespace:
+            namespace = "events"
+
+        if namespace in self._namespaced_loggers:
+            return self._namespaced_loggers[namespace]
+
+        # Create new namespaced logger
+        log_file = self.session_dir / f"{namespace}.jsonl"
+        stdlib_logger_name = f"{self._stdlib_logger_base_name}.{namespace}"
+
+        structlog_logger = _create_logger_infrastructure(
+            log_file=log_file,
+            stdlib_logger_name=stdlib_logger_name,
+            processors=self._processors,
+        )
+
+        # Cache the logger (handler is accessible via stdlib logger if needed)
+        self._namespaced_loggers[namespace] = structlog_logger
+        return structlog_logger
+
+    def _route_log(
+        self, method_name: str, event: str | Any | None, **kwargs: Any
+    ) -> Any:
+        """Route log to appropriate logger based on namespace kwarg."""
+        namespace = kwargs.pop("namespace", None)
+        logger = self._get_or_create_namespaced_logger(namespace)
+
+        # Call the appropriate log method
+        log_method = getattr(logger, method_name)
+        return log_method(event, **kwargs)
 
     @infer_event
     def info(self, event: str | Any | None = None, **kwargs: Any) -> Any:
-        """Log info-level event with auto-unpacking and event type inference."""
-        return self._logger.info(event, **kwargs)
+        """Log info-level event."""
+        return self._route_log("info", event, **kwargs)
 
     @infer_event
     def error(self, event: str | Any | None = None, **kwargs: Any) -> Any:
-        """Log error-level event with auto-unpacking and event type inference."""
-        return self._logger.error(event, **kwargs)
+        """Log error-level event."""
+        return self._route_log("error", event, **kwargs)
 
     @infer_event
     def debug(self, event: str | Any | None = None, **kwargs: Any) -> Any:
-        """Log debug-level event with auto-unpacking and event type inference."""
-        return self._logger.debug(event, **kwargs)
+        """Log debug-level event."""
+        return self._route_log("debug", event, **kwargs)
 
     @infer_event
     def warning(self, event: str | Any | None = None, **kwargs: Any) -> Any:
-        """Log warning-level event with auto-unpacking and event type inference."""
-        return self._logger.warning(event, **kwargs)
+        """Log warning-level event"""
+        return self._route_log("warning", event, **kwargs)
 
-    def bind(self, **kwargs: Any) -> "Dossier":
-        """
-        Add context to logger for subsequent log calls.
-
-        Note: this modifies this logger instance and returns self for chaining.
+    def bind(self, namespace: str | None = None, **kwargs: Any) -> "Dossier":
+        """Add context to logger for subsequent log calls.
 
         Example:
             logger.bind(request_id="abc-123", user_id="user_456")
             logger.info("processing_request")
             # Includes: request_id="abc-123", user_id="user_456"
 
-            # Or chain it:
-            logger.bind(request_id="123").bind(user_id="456").info("test")
+            # Bind to specific namespace:
+            logger.bind(worker_id="w1", namespace="worker")
+            logger.info("task", namespace="worker")  # Has worker_id="w1"
         """
-        self._logger = self._logger.bind(**kwargs)
+        ns_logger = self._get_or_create_namespaced_logger(namespace)
+        bound_logger = ns_logger.bind(**kwargs)
+
+        # Determine the actual namespace that was used (after defaulting)
+        actual_namespace = "events" if not namespace else namespace
+
+        # Update the cache with the bound logger
+        self._namespaced_loggers[actual_namespace] = bound_logger
         return self
 
-    def unbind(self, *keys: str) -> "Dossier":
-        """
-        Remove context keys from logger.
-
-        Note: this modifies this logger instance and returns self for chaining.
+    def unbind(self, *keys: str, namespace: str | None = None) -> "Dossier":
+        """Remove context keys from logger.
 
         Example:
             logger.bind(request_id="123", user_id="456")
@@ -128,10 +163,18 @@ class Dossier:
             logger.unbind("request_id")
             logger.info("test2")  # Only has user_id
 
-            # Or chain it:
-            logger.unbind("request_id", "user_id").info("test3")
+            # Unbind from specific namespace:
+            logger.unbind("worker_id", namespace="worker")
         """
-        self._logger = self._logger.unbind(*keys)
+        # Get or create the logger for this namespace (defaults to "events" if None)
+        ns_logger = self._get_or_create_namespaced_logger(namespace)
+        unbound_logger = ns_logger.unbind(*keys)
+
+        # Determine the actual namespace that was used (after defaulting)
+        actual_namespace = "events" if not namespace else namespace
+
+        # Update the cache with the unbound logger
+        self._namespaced_loggers[actual_namespace] = unbound_logger
         return self
 
     def get_session_path(self) -> Path:
@@ -151,6 +194,56 @@ class Dossier:
         pass  # Needed for context manager
 
 
+def _create_logger_infrastructure(
+    log_file: Path,
+    stdlib_logger_name: str,
+    processors: list[Any] | None = None,
+) -> Any:
+    """
+    Create logging infrastructure (file handler, stdlib logger, structlog logger).
+
+    Returns:
+        A configured structlog logger
+    """
+    # Set up file handler for JSON output
+    handler = logging.FileHandler(log_file)
+    handler.setFormatter(logging.Formatter("%(message)s"))
+
+    # Configure standard library logger
+    stdlib_logger = logging.getLogger(stdlib_logger_name)
+    stdlib_logger.handlers.clear()
+    stdlib_logger.addHandler(handler)
+    stdlib_logger.setLevel(logging.DEBUG)
+    stdlib_logger.propagate = False
+
+    # Build processor chain
+    custom_procs = processors or []
+    processor_chain = [
+        *custom_procs,
+        unpack_dataclasses,
+        unpack_pydantic_models,
+        unpack_generic_objects,
+        structlog.stdlib.add_log_level,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.format_exc_info,
+        make_json_safe,
+        structlog.processors.JSONRenderer(),
+    ]
+
+    # Configure structlog
+    structlog.configure(
+        processors=processor_chain,
+        wrapper_class=structlog.stdlib.BoundLogger,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        cache_logger_on_first_use=False,
+    )
+
+    # Get structlog logger (without any bound metadata)
+    structlog_logger = structlog.get_logger(stdlib_logger_name)
+
+    return structlog_logger
+
+
 def get_session(
     log_dir: str | Path = "logs",
     session_id: str | None = None,
@@ -167,10 +260,19 @@ def get_session(
     log directory is timestamped (e.g., "main_20251118_120000/"). This allows easy session
     retrieval while maintaining chronological organization of log files.
 
+    **Namespaced Logging:**
+    Use the `namespace` kwarg on logging methods to route logs to separate files:
+    ```python
+    logger = get_session(session_id="main")
+    logger.info("event")  # logs to events.jsonl
+    logger.info("event", namespace="worker")  # logs to worker.jsonl
+    logger.info("event", namespace="api.requests")  # logs to api.requests.jsonl
+    ```
+
     Args:
         log_dir: Directory to store log files
         session_id: Simple session identifier (e.g., "main", "worker"). If None, defaults
-                   to "session". Used as cache key.
+                   to "session".
         processors: Optional list of custom structlog processors
         force_new: If True, creates new timestamped log directory even if session_id exists
                   in cache. Useful for restarting sessions with same name.
@@ -181,24 +283,24 @@ def get_session(
     Example:
         # Simple session ID, timestamped directory created automatically
         logger = get_session(session_id="main")
-        # Creates: logs/main_20251118_120000/events.jsonl
+        # Logs to: logs/main_TIMESTAMP/events.jsonl
 
         # Subsequent calls return the same instance
         logger2 = get_session(session_id="main")
-        assert logger is logger2  # True! No timestamp needed.
+        assert logger is logger2
+
+        # Namespaced logging - single logger, multiple files
+        logger.info("event", namespace="worker")  # logs to main_TIMESTAMP/worker.jsonl
 
         # Force new session - creates new timestamped directory
         logger3 = get_session(session_id="main", force_new=True)
-        # Creates: logs/main_20251118_130000/events.jsonl
+        # Logs to: logs/main_MEW_TIMESTAMP/events.jsonl
         # Now logger3 is cached under "main"
 
-        logger4 = get_session(session_id="main")
-        assert logger3 is logger4  # Returns the newer instance
 
         # With context manager
         with get_session(session_id="task1") as logger:
-            logger.bind(model="gpt-4")
-            logger.info("test_event")
+            logger.info("log to temporary session")
     """
     # Convert to Path
     log_dir_path = Path(log_dir)
@@ -219,57 +321,15 @@ def get_session(
     session_dir = log_dir_path / timestamped_dir_name
     session_dir.mkdir(parents=True, exist_ok=True)
 
-    # Prepare session metadata with timestamp
-    metadata = {
-        "session_id": session_id,
-        "start_time": now.isoformat(),
-    }
+    # Set up base stdlib logger name (namespaces will be added to this)
+    stdlib_logger_base_name = f"session.{timestamped_dir_name}"
 
-    # Set up file handler for JSON output
-    log_file = session_dir / "events.jsonl"
-    handler = logging.FileHandler(log_file)
-    handler.setFormatter(logging.Formatter("%(message)s"))
-
-    # Configure standard library logger (use timestamped name to avoid conflicts)
-    stdlib_logger_name = f"session.{timestamped_dir_name}"
-    stdlib_logger = logging.getLogger(stdlib_logger_name)
-    stdlib_logger.handlers.clear()
-    stdlib_logger.addHandler(handler)
-    stdlib_logger.setLevel(logging.DEBUG)
-    stdlib_logger.propagate = False
-
-    # Build processor chain
-    custom_procs = processors or []
-    processor_chain = [
-        *custom_procs,  # User's custom processors go first
-        unpack_dataclasses,
-        unpack_pydantic_models,
-        unpack_generic_objects,
-        structlog.stdlib.add_log_level,
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.format_exc_info,
-        make_json_safe,
-        structlog.processors.JSONRenderer(),
-    ]
-
-    # Configure structlog
-    structlog.configure(
-        processors=processor_chain,
-        wrapper_class=structlog.stdlib.BoundLogger,
-        logger_factory=structlog.stdlib.LoggerFactory(),
-        cache_logger_on_first_use=False,  # Allow reconfiguration per session
-    )
-
-    # Get logger and bind session metadata
-    structlog_logger = structlog.get_logger(stdlib_logger_name).bind(**metadata)
-
-    # Create Dossier wrapper
+    # Create Dossier wrapper (loggers created lazily on first use)
     dossier = Dossier(
-        logger=structlog_logger,
         session_id=session_id,
         session_dir=session_dir,
-        file_handler=handler,
-        stdlib_logger_name=stdlib_logger_name,
+        stdlib_logger_base_name=stdlib_logger_base_name,
+        processors=processors,
     )
 
     # Cache before returning (using user-facing session_id as key)
@@ -279,36 +339,18 @@ def get_session(
 
 
 def close_session(session_id: str) -> None:
-    """
-    Close and remove session from cache.
-
-    This properly closes file handlers and removes the session from the cache.
-    Useful for cleanup or when you want to start fresh with the same session_id.
-
-    Args:
-        session_id: The session ID of the session to close
-
-    Example:
-        logger = get_session(session_id="main")
-        logger.info("test_event")
-
-        # Clean up when done
-        close_session("main")
-
-        # Now get_session will create a fresh instance
-        logger2 = get_session(session_id="main")
-        assert logger is not logger2  # True
-    """
+    """Close session and all the namespaced loggers."""
     if session_id in _logger_cache:
-        logger = _logger_cache.pop(session_id)
-        # Close file handler
-        logger._file_handler.close()
+        dossier = _logger_cache.pop(session_id)
 
-        # Clean up stdlib logger handlers (use the stored stdlib logger name)
-        stdlib_logger = logging.getLogger(logger._stdlib_logger_name)
-        for handler in stdlib_logger.handlers[:]:
-            handler.close()
-            stdlib_logger.removeHandler(handler)
+        # Close all namespaced loggers (including "events")
+        for namespace in dossier._namespaced_loggers:
+            # Get the stdlib logger and close its handlers
+            stdlib_logger_name = f"{dossier._stdlib_logger_base_name}.{namespace}"
+            stdlib_logger = logging.getLogger(stdlib_logger_name)
+            for handler in stdlib_logger.handlers[:]:
+                handler.close()
+                stdlib_logger.removeHandler(handler)
 
 
 # Backward compatibility aliases

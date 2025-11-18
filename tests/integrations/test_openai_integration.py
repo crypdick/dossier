@@ -268,10 +268,6 @@ def test_openai_conversation_flow():
         # Should have 4 events
         assert len(logs) == 4
 
-        # Check session_id in all logs
-        for log in logs:
-            assert log["session_id"] == "test_conversation"
-
         # Metadata bound after session_start, so check logs [1:]
         for log in logs[1:]:
             assert log["model"] == "gpt-4"

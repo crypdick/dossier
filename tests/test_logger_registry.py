@@ -131,10 +131,14 @@ def test_close_session_removes_from_cache(tmp_path):
 def test_close_session_closes_file_handlers(tmp_path):
     """Test that close_session properly closes file handlers."""
     logger = get_session(log_dir=tmp_path, session_id="test_session")
-    file_handler = logger._file_handler
 
-    # Log something
+    # Log something to create the "events" namespace
     logger.info("test_event")
+
+    # Get the file handler for the "events" namespace from stdlib logger
+    stdlib_logger_name = f"{logger._stdlib_logger_base_name}.events"
+    stdlib_logger = logging.getLogger(stdlib_logger_name)
+    file_handler = stdlib_logger.handlers[0]
 
     # Verify handler is open before close
     assert file_handler.stream is not None
@@ -151,8 +155,11 @@ def test_close_session_cleans_up_stdlib_logger(tmp_path):
     """Test that close_session cleans up stdlib logger handlers."""
     logger = get_session(log_dir=tmp_path, session_id="test_session")
 
-    # Get the stdlib logger (using internal name which is timestamped)
-    stdlib_logger_name = logger._stdlib_logger_name
+    # Log something to create the "events" namespace
+    logger.info("test_event")
+
+    # Get the stdlib logger for the "events" namespace
+    stdlib_logger_name = f"{logger._stdlib_logger_base_name}.events"
     stdlib_logger = logging.getLogger(stdlib_logger_name)
 
     # Should have handlers
