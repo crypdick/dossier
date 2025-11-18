@@ -7,7 +7,7 @@
 
 [project]
 name = "agent-dossier"
-version = "1.1.0"
+version = "1.1.1"
 description = "A structured logging library for AI agents with session management and object unpacking"
 readme = "README.md"
 requires-python = ">=3.13"
