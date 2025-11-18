@@ -8,7 +8,7 @@
 [project]
 name = "agent-dossier"
 version = "0.2.3"
-description = "A logging library for AI agents"
+description = "A structured logging library for AI agents with session management and object unpacking"
 readme = "README.md"
 requires-python = ">=3.13"
 license = "Apache-2.0"
