@@ -6,8 +6,9 @@ readme = "README.md"
 requires-python = ">=3.13"
 # Do not edit manually. Use `uv add <dep>` and `uv remove <dep>`
 dependencies = [
-
     "beartype>=0.22.5",
+    "better-exceptions>=0.3.3",
+    "rich>=14.2.0",
 ]
 
 [dependency-groups]
