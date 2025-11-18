@@ -325,6 +325,10 @@ def get_session(
 
     # Default session ID if not provided
     if session_id is None:
+        # If there's exactly one session in cache and not forcing new, return it (common use case)
+        if not force_new and len(_logger_cache) == 1:
+            return cast(Dossier, next(iter(_logger_cache.values())))
+        # Otherwise default to "session"
         session_id = "session"
 
     # Return cached logger if exists (unless force_new)

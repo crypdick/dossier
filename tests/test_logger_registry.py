@@ -387,3 +387,42 @@ def test_cache_key_is_session_id_only(tmp_path, tmp_path_factory):
     assert logger1.get_session_path() == session_path1
     assert logger2.get_session_path() == session_path1
     assert str(session_path1).startswith(str(tmp_path / "test_session_"))
+
+
+def test_get_session_without_args_returns_initialized_session(tmp_path):
+    """Test that get_session() without args returns the initialized session.
+
+    Bug reproduction: calling get_session() without arguments should return
+    the session that was already initialized, not create a new one.
+    """
+    # Initialize a session with a specific session_id
+    logger1 = get_session(log_dir=tmp_path, session_id="my_session")
+    logger1.bind(custom_field="value")
+    logger1.info("first_event")
+
+    # Call get_session() without arguments - should return the same session
+    logger2 = get_session()
+
+    # Should be the same instance
+    assert logger1 is logger2
+    assert logger1.session_id == logger2.session_id
+    assert logger1.get_session_path() == logger2.get_session_path()
+
+    # Log with logger2 - should go to the same log file
+    logger2.info("second_event")
+
+    # Both events should be in the same log file
+    import json
+
+    log_file = logger1.get_session_path() / "events.jsonl"
+
+    with open(log_file) as f:
+        lines = f.readlines()
+        assert len(lines) == 2
+        event1 = json.loads(lines[0])
+        event2 = json.loads(lines[1])
+
+        assert event1["event"] == "first_event"
+        assert event1["custom_field"] == "value"
+        assert event2["event"] == "second_event"
+        assert event2["custom_field"] == "value"  # Should have bound context
