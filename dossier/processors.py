@@ -1,133 +1,109 @@
 """Custom structlog processors for session logging."""
 
+from collections.abc import Callable
 from dataclasses import asdict, is_dataclass
 from typing import Any
 
 
-def make_json_safe_processor(
+def _recursive_transform(value: Any, transform_func: Callable[[Any], Any]) -> Any:
+    """Recursively apply transform_func to nested structures."""
+    transformed = transform_func(value)
+    if transformed is not value:
+        return transformed
+
+    if isinstance(value, list):
+        return [_recursive_transform(item, transform_func) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_recursive_transform(item, transform_func) for item in value)
+    if isinstance(value, dict) and type(value) is dict:
+        return {k: _recursive_transform(v, transform_func) for k, v in value.items()}
+
+    return value
+
+
+def make_json_safe(
     logger: Any, method_name: str, event_dict: dict[str, Any]
 ) -> dict[str, Any]:
-    """
-    Ensure all values in event_dict are JSON-serializable.
+    """Convert non-JSON-serializable values to strings."""
 
-    This processor recursively converts non-serializable objects to strings,
-    handling common cases like:
-    - LangChain messages
-    - Custom dataclasses (already unpacked by ObjectUnpackingProcessor)
-    - Any complex objects
-
-    Args:
-        logger: The wrapped logger instance (unused)
-        method_name: The log method name (unused)
-        event_dict: Dictionary containing the log event
-
-    Returns:
-        Modified event_dict with all values JSON-safe
-    """
-
-    def make_safe(value: Any) -> Any:
-        """Recursively make a value JSON-safe."""
-        # Handle None
-        if value is None:
-            return None
-
-        # Handle basic JSON types
-        if isinstance(value, (bool, int, float, str)):
+    def transform(value: Any) -> Any:
+        if value is None or isinstance(value, (bool, int, float, str)):
             return value
+        if isinstance(value, (list, dict, tuple)):
+            return value  # Let _recursive_transform handle recursion
+        return str(value)  # Convert everything else to string
 
-        # Handle lists and tuples
-        if isinstance(value, (list, tuple)):
-            return [make_safe(item) for item in value]
-
-        # Handle plain dictionaries (not custom classes)
-        if isinstance(value, dict) and type(value) is dict:
-            return {key: make_safe(val) for key, val in value.items()}
-
-        # For any other object (including custom classes),
-        # convert to string for readability in logs
-        return str(value)
-
-    # Process all values in the event dict
     for key, value in list(event_dict.items()):
-        event_dict[key] = make_safe(value)
+        event_dict[key] = _recursive_transform(value, transform)
 
     return event_dict
 
 
-def object_unpacking_processor(
-    logger: Any, method_name: str, event_dict: dict[str, Any]
+def _process_event_dict(
+    event_dict: dict[str, Any], transform_func: Callable[[Any], Any]
 ) -> dict[str, Any]:
-    """
-    Unpack objects in the event_dict into flat key-value pairs.
-
-    This processor handles objects that were passed as values:
-    - Dataclasses → unpacked via asdict()
-    - Pydantic models → unpacked via model_dump()
-    - Objects with __dict__ → unpacked
-    - Collections and primitives → passed through
-
-    This allows you to pass rich objects as log parameters and have
-    them automatically flattened.
-
-    Example:
-        @dataclass
-        class UserMessage:
-            content: str
-            role: str
-
-        msg = UserMessage(content="Hello", role="user")
-        logger.info("user_message", message=msg)
-
-        # Results in: {
-        #   "event": "user_message",
-        #   "message_content": "Hello",
-        #   "message_role": "user"
-        # }
-
-    Args:
-        logger: The wrapped logger instance (unused)
-        method_name: The log method name (unused)
-        event_dict: Dictionary containing the log event
-
-    Returns:
-        Modified event_dict with objects unpacked
-    """
-
-    def flatten_object(obj: Any) -> dict[str, Any]:
-        """Flatten an object into a dictionary."""
-        # Handle dataclasses
-        if is_dataclass(obj) and not isinstance(obj, type):
-            return asdict(obj)
-
-        # Handle plain dicts
-        if isinstance(obj, dict):
-            return obj
-
-        # Try Pydantic model_dump - will raise AttributeError if not available
-        if callable(getattr(obj, "model_dump", None)):
-            result: dict[str, Any] = obj.model_dump()
-            return result
-
-        # Try to extract __dict__ - will raise AttributeError if not available
-        return {k: v for k, v in obj.__dict__.items() if not k.startswith("_")}
-
-    # Process each value in the event dict
+    """Apply transform_func to event_dict values, handling _obj key and flattening."""
     new_dict = {}
+
     for key, value in event_dict.items():
-        # Special handling for _obj key (object passed directly to logger)
         if key == "_obj":
-            # Unpack directly without prefix
-            flattened = flatten_object(value)
-            new_dict.update(flattened)
+            transformed_value = _recursive_transform(value, transform_func)
+            if isinstance(transformed_value, dict):
+                new_dict.update(transformed_value)
+            else:
+                new_dict[key] = transformed_value
             continue
 
-        # Skip primitives and collections
-        if isinstance(value, (str, int, float, bool, type(None), list, dict)):
-            new_dict[key] = value
-        else:
-            # Flatten the object and add prefix to avoid collisions
-            flattened = flatten_object(value)
-            for k, v in flattened.items():
+        direct_transform = transform_func(value)
+        if direct_transform is not value and isinstance(direct_transform, dict):
+            for k, v in direct_transform.items():
                 new_dict[f"{key}_{k}"] = v
+        else:
+            new_dict[key] = _recursive_transform(value, transform_func)
 
     return new_dict
+
+
+def unpack_dataclasses(
+    logger: Any, method_name: str, event_dict: dict[str, Any]
+) -> dict[str, Any]:
+    """Unpack dataclasses to dicts recursively."""
+
+    def transform(value: Any) -> Any:
+        if is_dataclass(value) and not isinstance(value, type):
+            return asdict(value)
+        return value
+
+    return _process_event_dict(event_dict, transform)
+
+
+def unpack_pydantic_models(
+    logger: Any, method_name: str, event_dict: dict[str, Any]
+) -> dict[str, Any]:
+    """Unpack Pydantic models to dicts recursively."""
+
+    def transform(value: Any) -> Any:
+        if callable(getattr(value, "model_dump", None)):
+            return value.model_dump()
+        return value
+
+    return _process_event_dict(event_dict, transform)
+
+
+def unpack_generic_objects(
+    logger: Any, method_name: str, event_dict: dict[str, Any]
+) -> dict[str, Any]:
+    """Unpack objects with __dict__ to dicts recursively."""
+
+    def transform(value: Any) -> Any:
+        if isinstance(value, (str, int, float, bool, type(None), list, dict, tuple)):
+            return value
+        if is_dataclass(value) and not isinstance(value, type):
+            return value
+        if callable(getattr(value, "model_dump", None)):
+            return value
+        if hasattr(value, "__dict__"):
+            return {k: v for k, v in value.__dict__.items() if not k.startswith("_")}
+        return value
+
+    return _process_event_dict(event_dict, transform)

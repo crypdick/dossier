@@ -7,7 +7,12 @@ from typing import Any
 
 import structlog
 
-from dossier.processors import make_json_safe_processor, object_unpacking_processor
+from dossier.processors import (
+    make_json_safe,
+    unpack_dataclasses,
+    unpack_generic_objects,
+    unpack_pydantic_models,
+)
 
 
 def _infer_event_type_from_object(obj: Any) -> str | None:
@@ -226,11 +231,13 @@ def get_logger(
     custom_procs = processors or []
     processor_chain = [
         *custom_procs,  # User's custom processors go first
-        object_unpacking_processor,  # Unpack objects into flat dicts
+        unpack_dataclasses,
+        unpack_pydantic_models,
+        unpack_generic_objects,
         structlog.stdlib.add_log_level,
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.format_exc_info,
-        make_json_safe_processor,
+        make_json_safe,
         structlog.processors.JSONRenderer(),
     ]
 
