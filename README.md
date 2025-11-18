@@ -225,8 +225,11 @@ print(cost_tracker.get_summary())
 # Output: Total cost: $0.0500 across 2 calls
 ```
 
+## Integrations
 
-### LangChain Integration
+Dossier automatically unpacks objects from popular libraries.
+
+### LangChain
 
 Works seamlessly with LangChain objects:
 
@@ -240,7 +243,7 @@ ai_msg = AIMessage(content="4")
 logger.info(ai_msg)  # Event type: "ai_message"
 ```
 
-### Pydantic Models
+### Pydantic
 
 ```python
 from pydantic import BaseModel
@@ -253,8 +256,6 @@ class RequestModel(BaseModel):
 request = RequestModel(method="POST", path="/api/chat", body={"msg": "hi"})
 logger.info(request)  # Auto-unpacks to flat dict
 ```
-
-## Directory Structure
 
 
 
