@@ -77,18 +77,31 @@ class Dossier:
         self._processors = processors or []
         self._namespaced_loggers: dict[str, Any] = {}
 
+    def _resolve_namespace(self, namespace: str | None) -> str:
+        """Resolve namespace to a canonical string, defaulting to 'events'."""
+        return "events" if not namespace else namespace
+
+    def _get_namespaced_logger(self, namespace: str | None) -> Any | None:
+        """Get a namespaced logger if it exists, return None otherwise."""
+        resolved = self._resolve_namespace(namespace)
+        return self._namespaced_loggers.get(resolved)
+
+    def _set_namespaced_logger(self, namespace: str | None, logger: Any) -> None:
+        """Set/update a namespaced logger in the cache."""
+        resolved = self._resolve_namespace(namespace)
+        self._namespaced_loggers[resolved] = logger
+
     def _get_or_create_namespaced_logger(self, namespace: str | None) -> Any:
         """Get or create a namespaced logger for routing logs to a separate file."""
-        # Default to "events" namespace if None or empty string
-        if not namespace:
-            namespace = "events"
-
-        if namespace in self._namespaced_loggers:
-            return self._namespaced_loggers[namespace]
+        # Return cached logger if it exists
+        cached = self._get_namespaced_logger(namespace)
+        if cached is not None:
+            return cached
 
         # Create new namespaced logger
-        log_file = self.session_dir / f"{namespace}.jsonl"
-        stdlib_logger_name = f"{self._stdlib_logger_base_name}.{namespace}"
+        resolved = self._resolve_namespace(namespace)
+        log_file = self.session_dir / f"{resolved}.jsonl"
+        stdlib_logger_name = f"{self._stdlib_logger_base_name}.{resolved}"
 
         structlog_logger = _create_logger_infrastructure(
             log_file=log_file,
@@ -96,8 +109,8 @@ class Dossier:
             processors=self._processors,
         )
 
-        # Cache the logger (handler is accessible via stdlib logger if needed)
-        self._namespaced_loggers[namespace] = structlog_logger
+        # Cache the logger using the setter
+        self._set_namespaced_logger(namespace, structlog_logger)
         return structlog_logger
 
     def _route_log(
@@ -143,14 +156,9 @@ class Dossier:
             logger.bind(worker_id="w1", namespace="worker")
             logger.info("task", namespace="worker")  # Has worker_id="w1"
         """
-        ns_logger = self._get_or_create_namespaced_logger(namespace)
-        bound_logger = ns_logger.bind(**kwargs)
+        bound_logger = self._get_or_create_namespaced_logger(namespace).bind(**kwargs)
 
-        # Determine the actual namespace that was used (after defaulting)
-        actual_namespace = "events" if not namespace else namespace
-
-        # Update the cache with the bound logger
-        self._namespaced_loggers[actual_namespace] = bound_logger
+        self._set_namespaced_logger(namespace, bound_logger)
         return self
 
     def unbind(self, *keys: str, namespace: str | None = None) -> "Dossier":
@@ -167,14 +175,9 @@ class Dossier:
             logger.unbind("worker_id", namespace="worker")
         """
         # Get or create the logger for this namespace (defaults to "events" if None)
-        ns_logger = self._get_or_create_namespaced_logger(namespace)
-        unbound_logger = ns_logger.unbind(*keys)
+        unbound_logger = self._get_or_create_namespaced_logger(namespace).unbind(*keys)
 
-        # Determine the actual namespace that was used (after defaulting)
-        actual_namespace = "events" if not namespace else namespace
-
-        # Update the cache with the unbound logger
-        self._namespaced_loggers[actual_namespace] = unbound_logger
+        self._set_namespaced_logger(namespace, unbound_logger)
         return self
 
     def get_session_path(self) -> Path:
