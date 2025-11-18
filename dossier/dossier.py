@@ -17,6 +17,9 @@ from dossier.processors import (
 # Module-level cache for logger instances (similar to logging.getLogger)
 _logger_cache: dict[str, Any] = {}
 
+# Track if structlog has been configured globally
+_structlog_configured = False
+
 
 def _infer_event_type_from_object(obj: Any) -> str | None:
     """Infer event type from object class name."""
@@ -197,32 +200,14 @@ class Dossier:
         pass  # Needed for context manager
 
 
-def _create_logger_infrastructure(
-    log_file: Path,
-    stdlib_logger_name: str,
-    processors: list[Any] | None = None,
-) -> Any:
-    """
-    Create logging infrastructure (file handler, stdlib logger, structlog logger).
+def _ensure_structlog_configured() -> None:
+    """Configure structlog once globally if not already configured."""
+    global _structlog_configured
 
-    Returns:
-        A configured structlog logger
-    """
-    # Set up file handler for JSON output
-    handler = logging.FileHandler(log_file)
-    handler.setFormatter(logging.Formatter("%(message)s"))
+    if _structlog_configured:
+        return
 
-    # Configure standard library logger
-    stdlib_logger = logging.getLogger(stdlib_logger_name)
-    stdlib_logger.handlers.clear()
-    stdlib_logger.addHandler(handler)
-    stdlib_logger.setLevel(logging.DEBUG)
-    stdlib_logger.propagate = False
-
-    # Build processor chain
-    custom_procs = processors or []
-    processor_chain = [
-        *custom_procs,
+    processor_chain: list[Any] = [
         unpack_dataclasses,
         unpack_pydantic_models,
         unpack_generic_objects,
@@ -233,18 +218,47 @@ def _create_logger_infrastructure(
         structlog.processors.JSONRenderer(),
     ]
 
-    # Configure structlog
     structlog.configure(
         processors=processor_chain,
         wrapper_class=structlog.stdlib.BoundLogger,
         logger_factory=structlog.stdlib.LoggerFactory(),
-        cache_logger_on_first_use=False,
+        cache_logger_on_first_use=True,
     )
 
-    # Get structlog logger (without any bound metadata)
-    structlog_logger = structlog.get_logger(stdlib_logger_name)
+    _structlog_configured = True
 
-    return structlog_logger
+
+def _create_logger_infrastructure(
+    log_file: Path,
+    stdlib_logger_name: str,
+    processors: list[Any] | None = None,
+) -> Any:
+    """Create a logger for a specific namespace."""
+    _ensure_structlog_configured()
+
+    # Set up file handler
+    handler = logging.FileHandler(log_file)
+    handler.setFormatter(logging.Formatter("%(message)s"))
+
+    # Configure standard library logger
+    stdlib_logger = logging.getLogger(stdlib_logger_name)
+    stdlib_logger.handlers.clear()
+    stdlib_logger.addHandler(handler)
+    stdlib_logger.setLevel(logging.DEBUG)
+    stdlib_logger.propagate = False
+
+    # Get base structlog logger (uses global config)
+    base_logger = structlog.get_logger(stdlib_logger_name)
+
+    # If custom processors provided, wrap the logger with them
+    if processors:
+        return structlog.wrap_logger(
+            base_logger,
+            wrapper_class=structlog.stdlib.BoundLogger,
+            processors=processors,
+        )
+
+    return base_logger
 
 
 def get_session(
