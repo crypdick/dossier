@@ -34,7 +34,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/crypdick/dossier"
+Homepage = "https://dossier.ricardodecal.com/"
+Documentation = "https://dossier.ricardodecal.com/"
 Repository = "https://github.com/crypdick/dossier"
 Issues = "https://github.com/crypdick/dossier/issues"
 
