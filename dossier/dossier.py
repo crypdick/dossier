@@ -151,7 +151,6 @@ def get_logger(
     session_prefix: str = "session_",
     session_id: str | None = None,
     processors: list[Any] | None = None,
-    **session_metadata: Any,
 ) -> Dossier:
     """
     Create and start a new dossier logger.
@@ -161,22 +160,15 @@ def get_logger(
         session_prefix: Prefix for session directory names
         session_id: Optional session ID (auto-generated if None)
         processors: Optional list of custom structlog processors
-        **session_metadata: Any metadata to associate with the session
-            Examples: model, mode, user_id, experiment_name, etc.
 
     Returns:
         Started Dossier instance
 
     Example:
         # Basic usage
-        logger = get_logger(
-            log_dir="logs",
-            model="gpt-4",
-            mode="agent",
-            user_id="user_123",
-        )
+        logger = get_logger(log_dir="logs")
+        logger.bind(model="gpt-4", user_id="user_123")
         logger.info("user_message", content="Hello")
-        logger.end_session()
 
         # With custom processors
         def add_hostname(logger, method_name, event_dict):
@@ -187,13 +179,12 @@ def get_logger(
         logger = get_logger(
             log_dir="logs",
             processors=[add_hostname],
-            model="gpt-4",
         )
 
         # With context manager
-        with get_logger(model="gpt-4") as logger:
+        with get_logger() as logger:
+            logger.bind(model="gpt-4")
             logger.info("test_event")
-        # Session automatically ended
     """
     # Convert to Path
     log_dir_path = Path(log_dir)
@@ -211,7 +202,6 @@ def get_logger(
     metadata = {
         "session_id": session_id,
         "start_time": now.isoformat(),
-        **session_metadata,
     }
 
     # Set up file handler for JSON output
@@ -259,8 +249,5 @@ def get_logger(
         session_dir=session_dir,
         file_handler=handler,
     )
-
-    # Log session start
-    dossier.info("session_start")
 
     return dossier

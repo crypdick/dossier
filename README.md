@@ -38,7 +38,9 @@ log = dossier.get_logger()
 # Bind info to the logger for the entire session
 log.bind(model="gpt-4", mode="agent", user_id="user_123", experiment="feature_test")
 
-log.info("session_start")  # logs: {"event": "session_start", "timestamp": "2025-11-18T12:00:00.000Z", "level": "info", "model": "gpt-4", "mode": "agent", "user_id": "user_123", "experiment": "feature_test"}
+log.info("session_start")
+# logs: {"event": "session_start", "timestamp": "2025-11-18T12:00:00.000Z", "level": "info",
+#        "model": "gpt-4", "mode": "agent", "user_id": "user_123", "experiment": "feature_test"}
 
 
 # Unbind keys
@@ -91,10 +93,10 @@ def add_environment(logger, method_name, event_dict):
 logger = get_logger(
     log_dir="logs",
     processors=[add_hostname, add_environment],
-    model="gpt-4"
 )
+logger.bind(model="gpt-4")
 logger.info("test_event")
-# Output includes: hostname, environment
+# Output includes: hostname, environment, model
 ```
 
 ### Stateful Class Processors
@@ -127,7 +129,8 @@ class TokenCounter:
 # Create the counter instance
 counter = TokenCounter()
 
-logger = get_logger(log_dir="logs", processors=[counter], model="gpt-4")
+logger = get_logger(log_dir="logs", processors=[counter])
+logger.bind(model="gpt-4")
 
 # Log token usage
 logger.info("token_usage", input_tokens=100, output_tokens=50)
@@ -189,8 +192,8 @@ cost_tracker = CostTracker()
 logger = get_logger(
     log_dir="logs",
     processors=[cost_tracker],
-    model="gpt-4-turbo"
 )
+logger.bind(model="gpt-4-turbo")
 
 # Log some API usage
 logger.info("token_usage", model="gpt-4-turbo", input_tokens=1000, output_tokens=500)
