@@ -1,5 +1,11 @@
 [project]
 name = "agent-dossier"
+# Version is managed by uv. To bump:
+#   - Patch (0.1.2 -> 0.1.3): uv version --bump patch
+#   - Minor (0.1.2 -> 0.2.0): uv version --bump minor
+#   - Major (0.1.2 -> 1.0.0): uv version --bump major
+# Then create a git tag: git tag v<version> && git push origin v<version>
+# The tag will trigger the publish workflow to PyPI
 version = "0.1.2"
 description = "A logging library for AI agents"
 readme = "README.md"
