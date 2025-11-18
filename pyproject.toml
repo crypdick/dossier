@@ -1,5 +1,5 @@
 [project]
-name = "dossier"
+name = "agent-dossier"
 version = "0.1.1"
 description = "A logging library for AI agents"
 readme = "README.md"
