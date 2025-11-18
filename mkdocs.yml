@@ -1,6 +1,6 @@
 site_name: dossier
 site_description: A structured logging library for AI agents with session management and object unpacking
-site_url: https://crypdick.github.io/dossier/
+site_url: https://dossier.ricardodecal.com/
 site_author: Ricardo Decal
 repo_url: https://github.com/crypdick/dossier
 repo_name: crypdick/dossier
