@@ -6,7 +6,7 @@
 # The tag will trigger the publish workflow to PyPI
 
 [project]
-name = "agent-dossier"
+name = "dossier"
 version = "1.1.2"
 description = "A structured logging library for AI agents with session management and object unpacking"
 readme = "README.md"
