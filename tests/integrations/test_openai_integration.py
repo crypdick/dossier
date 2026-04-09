@@ -1,8 +1,6 @@
 """Integration tests for OpenAI SDK objects."""
 
-import json
 import tempfile
-from pathlib import Path
 
 import pytest
 from openai.types.chat import (
@@ -15,16 +13,7 @@ from openai.types.chat.chat_completion_message_tool_call import Function
 from openai.types.completion_usage import CompletionUsage
 
 from dossier import get_session
-
-
-def read_jsonl_logs(session_dir: Path) -> list[dict]:
-    """Read and parse all JSONL log entries."""
-    log_file = session_dir / "events.jsonl"
-    logs = []
-    with open(log_file) as f:
-        for line in f:
-            logs.append(json.loads(line))
-    return logs
+from tests.conftest import read_jsonl_logs
 
 
 def test_chat_completion_message_logging():

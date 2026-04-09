@@ -64,44 +64,25 @@ def _process_event_dict(
     return new_dict
 
 
-def unpack_dataclasses(
+def unpack_objects(
     logger: Any, method_name: str, event_dict: dict[str, Any]
 ) -> dict[str, Any]:
-    """Unpack dataclasses to dicts recursively."""
+    """Unpack dataclasses, Pydantic models, and generic objects to dicts.
+
+    Priority: dataclass > Pydantic model_dump > generic __dict__.
+    """
 
     def transform(value: Any) -> Any:
-        if is_dataclass(value) and not isinstance(value, type):
-            return asdict(value)
-        return value
-
-    return _process_event_dict(event_dict, transform)
-
-
-def unpack_pydantic_models(
-    logger: Any, method_name: str, event_dict: dict[str, Any]
-) -> dict[str, Any]:
-    """Unpack Pydantic models to dicts recursively."""
-
-    def transform(value: Any) -> Any:
-        if callable(getattr(value, "model_dump", None)):
-            return value.model_dump()
-        return value
-
-    return _process_event_dict(event_dict, transform)
-
-
-def unpack_generic_objects(
-    logger: Any, method_name: str, event_dict: dict[str, Any]
-) -> dict[str, Any]:
-    """Unpack objects with __dict__ to dicts recursively."""
-
-    def transform(value: Any) -> Any:
+        # Skip primitives and containers early
         if isinstance(value, (str, int, float, bool, type(None), list, dict, tuple)):
             return value
+        # Dataclasses first (highest fidelity — uses asdict for deep conversion)
         if is_dataclass(value) and not isinstance(value, type):
-            return value
+            return asdict(value)
+        # Pydantic models second
         if callable(getattr(value, "model_dump", None)):
-            return value
+            return value.model_dump()
+        # Generic objects with __dict__ last (excludes private attrs)
         if hasattr(value, "__dict__"):
             return {k: v for k, v in value.__dict__.items() if not k.startswith("_")}
         return value

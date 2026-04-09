@@ -1,5 +1,6 @@
 import functools
 import logging
+import threading
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
@@ -7,15 +8,11 @@ from typing import Any, cast
 
 import structlog
 
-from dossier.processors import (
-    make_json_safe,
-    unpack_dataclasses,
-    unpack_generic_objects,
-    unpack_pydantic_models,
-)
+from dossier.processors import make_json_safe, unpack_objects
 
 # Module-level cache for logger instances (similar to logging.getLogger)
 _logger_cache: dict[str, Any] = {}
+_cache_lock = threading.Lock()
 
 # Track if structlog has been configured globally
 _structlog_configured = False
@@ -80,9 +77,14 @@ class Dossier:
         self._processors = processors or []
         self._namespaced_loggers: dict[str, Any] = {}
 
+    def __repr__(self) -> str:
+        return (
+            f"Dossier(session_id={self.session_id!r}, session_dir={self.session_dir})"
+        )
+
     def _resolve_namespace(self, namespace: str | None) -> str:
         """Resolve namespace to a canonical string, defaulting to 'events'."""
-        return "events" if not namespace else namespace
+        return namespace if namespace else "events"
 
     def _get_namespaced_logger(self, namespace: str | None) -> Any | None:
         """Get a namespaced logger if it exists, return None otherwise."""
@@ -144,7 +146,7 @@ class Dossier:
 
     @infer_event
     def warning(self, event: str | Any | None = None, **kwargs: Any) -> Any:
-        """Log warning-level event"""
+        """Log warning-level event."""
         return self._route_log("warning", event, **kwargs)
 
     def bind(self, namespace: str | None = None, **kwargs: Any) -> "Dossier":
@@ -195,7 +197,7 @@ class Dossier:
         return self
 
     def __exit__(self, *_args: object) -> None:
-        pass
+        close_session(self.session_id)
 
 
 def _ensure_structlog_configured() -> None:
@@ -206,9 +208,7 @@ def _ensure_structlog_configured() -> None:
         return
 
     processor_chain: list[Any] = [
-        unpack_dataclasses,
-        unpack_pydantic_models,
-        unpack_generic_objects,
+        unpack_objects,
         structlog.stdlib.add_log_level,
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.format_exc_info,
@@ -309,69 +309,68 @@ def get_session(
 
         # Force new session - creates new timestamped directory
         logger3 = get_session(session_id="main", force_new=True)
-        # Logs to: logs/main_MEW_TIMESTAMP/events.jsonl
+        # Logs to: logs/main_NEW_TIMESTAMP/events.jsonl
         # Now logger3 is cached under "main"
 
-
-        # With context manager
+        # With context manager (auto-closes session on exit)
         with get_session(session_id="task1") as logger:
             logger.info("log to temporary session")
     """
-    # Convert to Path
-    log_dir_path = Path(log_dir)
-    log_dir_path.mkdir(parents=True, exist_ok=True)
+    with _cache_lock:
+        # Convert to Path
+        log_dir_path = Path(log_dir)
+        log_dir_path.mkdir(parents=True, exist_ok=True)
 
-    # Default session ID if not provided
-    if session_id is None:
-        # If there's exactly one session in cache and not forcing new, return it (common use case)
-        if not force_new and len(_logger_cache) == 1:
-            return cast(Dossier, next(iter(_logger_cache.values())))
-        # Otherwise default to "session"
-        session_id = "session"
+        # Default session ID if not provided
+        if session_id is None:
+            # If there's exactly one session in cache and not forcing new, return it (common use case)
+            if not force_new and len(_logger_cache) == 1:
+                return cast(Dossier, next(iter(_logger_cache.values())))
+            # Otherwise default to "session"
+            session_id = "session"
 
-    # Return cached logger if exists (unless force_new)
-    if not force_new and session_id in _logger_cache:
-        return cast(Dossier, _logger_cache[session_id])
+        # Return cached logger if exists (unless force_new)
+        if not force_new and session_id in _logger_cache:
+            return cast(Dossier, _logger_cache[session_id])
 
-    # Create timestamped directory name (session_id + underscore + timestamp)
-    now = datetime.now()
-    timestamp_suffix = now.strftime("%Y%m%d_%H%M%S")
-    timestamped_dir_name = f"{session_id}_{timestamp_suffix}"
-    session_dir = log_dir_path / timestamped_dir_name
-    session_dir.mkdir(parents=True, exist_ok=True)
+        # Create timestamped directory name (session_id + underscore + timestamp)
+        now = datetime.now()
+        timestamp_suffix = now.strftime("%Y%m%d_%H%M%S")
+        timestamped_dir_name = f"{session_id}_{timestamp_suffix}"
+        session_dir = log_dir_path / timestamped_dir_name
+        session_dir.mkdir(parents=True, exist_ok=True)
 
-    # Set up base stdlib logger name (namespaces will be added to this)
-    stdlib_logger_base_name = f"session.{timestamped_dir_name}"
+        # Set up base stdlib logger name (namespaces will be added to this)
+        stdlib_logger_base_name = f"session.{timestamped_dir_name}"
 
-    # Create Dossier wrapper (loggers created lazily on first use)
-    dossier = Dossier(
-        session_id=session_id,
-        session_dir=session_dir,
-        stdlib_logger_base_name=stdlib_logger_base_name,
-        processors=processors,
-    )
+        # Create Dossier wrapper (loggers created lazily on first use)
+        dossier = Dossier(
+            session_id=session_id,
+            session_dir=session_dir,
+            stdlib_logger_base_name=stdlib_logger_base_name,
+            processors=processors,
+        )
 
-    # Cache before returning (using user-facing session_id as key)
-    _logger_cache[session_id] = dossier
+        # Cache before returning (using user-facing session_id as key)
+        _logger_cache[session_id] = dossier
 
-    return dossier
+        return dossier
 
 
 def close_session(session_id: str) -> None:
-    """Close session and all the namespaced loggers."""
-    if session_id in _logger_cache:
+    """Close session and all the namespaced loggers.
+
+    Raises:
+        KeyError: If session_id is not found in the cache.
+    """
+    with _cache_lock:
         dossier = _logger_cache.pop(session_id)
 
-        # Close all namespaced loggers (including "events")
-        for namespace in dossier._namespaced_loggers:
-            # Get the stdlib logger and close its handlers
-            stdlib_logger_name = f"{dossier._stdlib_logger_base_name}.{namespace}"
-            stdlib_logger = logging.getLogger(stdlib_logger_name)
-            for handler in stdlib_logger.handlers[:]:
-                handler.close()
-                stdlib_logger.removeHandler(handler)
-
-
-# Backward compatibility aliases
-get_logger = get_session
-close_logger = close_session
+    # Close all namespaced loggers (including "events")
+    for namespace in dossier._namespaced_loggers:
+        # Get the stdlib logger and close its handlers
+        stdlib_logger_name = f"{dossier._stdlib_logger_base_name}.{namespace}"
+        stdlib_logger = logging.getLogger(stdlib_logger_name)
+        for handler in stdlib_logger.handlers[:]:
+            handler.close()
+            stdlib_logger.removeHandler(handler)

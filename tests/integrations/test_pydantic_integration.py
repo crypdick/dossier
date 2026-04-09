@@ -1,24 +1,13 @@
 """Integration tests for Pydantic model types."""
 
-import json
 import tempfile
-from pathlib import Path
 from typing import Any
 
 import pytest
 from pydantic import BaseModel, Field, field_validator
 
 from dossier import get_session
-
-
-def read_jsonl_logs(session_dir: Path) -> list[dict]:
-    """Read and parse all JSONL log entries."""
-    log_file = session_dir / "events.jsonl"
-    logs = []
-    with open(log_file) as f:
-        for line in f:
-            logs.append(json.loads(line))
-    return logs
+from tests.conftest import read_jsonl_logs
 
 
 class SimpleModel(BaseModel):

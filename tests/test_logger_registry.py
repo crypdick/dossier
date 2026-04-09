@@ -173,12 +173,9 @@ def test_close_session_cleans_up_stdlib_logger(tmp_path):
 
 
 def test_close_session_nonexistent_session(tmp_path):
-    """Test that close_session handles non-existent session gracefully."""
-    # Should not raise an error
-    close_session("nonexistent_session")
-
-    # Cache should still be empty
-    assert "nonexistent_session" not in _logger_cache
+    """Test that close_session raises KeyError for non-existent session."""
+    with pytest.raises(KeyError):
+        close_session("nonexistent_session")
 
 
 def test_close_session_and_recreate(tmp_path):
@@ -347,26 +344,19 @@ def test_processors_parameter_with_cache(tmp_path):
         assert event2["custom_flag"] is True
 
 
-def test_context_manager_with_cache(tmp_path):
-    """Test that context manager works with cached loggers."""
-    # First use with context manager
+def test_context_manager_closes_session(tmp_path):
+    """Test that context manager removes session from cache on exit."""
     with get_session(log_dir=tmp_path, session_id="test_session") as logger1:
         logger1.info("event1")
-        log_path = logger1.get_session_path()
 
-    # Second use - should get cached logger
-    with get_session(log_dir=tmp_path, session_id="test_session") as logger2:
-        logger2.info("event2")
+    # Session should be removed from cache after with-block
+    assert "test_session" not in _logger_cache
 
-    # Should be same instance
-    assert logger1 is logger2
-
-    # Both events should be logged
-    log_file = log_path / "events.jsonl"
-
+    # Events logged inside the block should be persisted
+    log_file = logger1.get_session_path() / "events.jsonl"
     with open(log_file) as f:
         lines = f.readlines()
-        assert len(lines) == 2
+        assert len(lines) == 1
 
 
 def test_cache_key_is_session_id_only(tmp_path, tmp_path_factory):

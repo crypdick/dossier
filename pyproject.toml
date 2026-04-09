@@ -10,7 +10,7 @@ name = "dossier"
 version = "1.1.3"
 description = "A structured logging library for AI agents with session management and object unpacking"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.10"
 license = "Apache-2.0"
 authors = [
     { name = "Ricardo Decal", email = "dossier-project@ricardodecal.com" }
@@ -21,6 +21,9 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: System :: Logging",
@@ -28,8 +31,6 @@ classifiers = [
 # Do not edit manually. Use `uv add <dep>` and `uv remove <dep>`
 dependencies = [
     "beartype>=0.22.5",
-    "better-exceptions>=0.3.3",
-    "rich>=14.2.0",
     "structlog>=25.5.0",
 ]
 
@@ -42,6 +43,7 @@ Issues = "https://github.com/crypdick/dossier/issues"
 [dependency-groups]
 # Note: use `uvx pre-commit run --all-files` to run the pre-commit hooks
 dev = [
+    "better-exceptions>=0.3.3",
     "langchain-core>=1.0.5",
     "mkdocs>=1.6.1",
     "mkdocs-autorefs>=1.4.3",
@@ -55,6 +57,7 @@ dev = [
     "openai-agents>=0.5.1",
     "pydantic>=2.12.4",
     "pytest>=9.0.1",
+    "rich>=14.2.0",
     "pytest-asyncio>=1.3.0",
     "pytest-cov>=7.0.0",
     "pytest-xdist>=3.8.0",
@@ -75,7 +78,7 @@ addopts = "-n auto"
 
 [tool.mypy]
 # Enforce comprehensive type hinting
-python_version = "3.13"
+python_version = "3.10"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
@@ -115,15 +118,20 @@ lint.select = [
     "W",   # pycodestyle warnings
     "F",   # pyflakes
     "I",   # isort
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
+    "UP",  # pyupgrade
+    "RUF", # ruff-specific rules
+    "PT",  # flake8-pytest-style
     "PLC", # Pylint convention
 ]
 
-# Ignore line-too-long (E501) - many docstrings/messages are naturally longer
-lint.ignore = ["E501"]
+lint.ignore = [
+    "E501",    # line-too-long — many docstrings/messages are naturally longer
+    "UP007",   # use X | Y for union types — already using this style
+]
 
 # PLC0415: Import outside top-level (import-outside-toplevel)
-# This catches imports inside functions/classes which should generally be at module level
-# Can be disabled per-line with # noqa: PLC0415
 lint.extend-select = ["PLC0415"]
 
 # Exclude test files from import-outside-toplevel check

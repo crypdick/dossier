@@ -2,7 +2,6 @@
 
 import json
 import tempfile
-from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
@@ -10,16 +9,7 @@ import requests
 from requests.structures import CaseInsensitiveDict
 
 from dossier import get_session
-
-
-def read_jsonl_logs(session_dir: Path) -> list[dict]:
-    """Read and parse all JSONL log entries."""
-    log_file = session_dir / "events.jsonl"
-    logs = []
-    with open(log_file) as f:
-        for line in f:
-            logs.append(json.loads(line))
-    return logs
+from tests.conftest import read_jsonl_logs
 
 
 def create_mock_response(
