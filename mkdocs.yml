@@ -68,9 +68,13 @@ plugins:
       sections:
         Documentation:
           - index.md
+          - processors.md
+          - integrations.md
 
 nav:
   - Home: index.md
+  - Custom Processors: processors.md
+  - Integrations: integrations.md
   - API Reference: reference/
 
 extra:
