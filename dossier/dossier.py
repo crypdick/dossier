@@ -194,10 +194,8 @@ class Dossier:
     def __enter__(self) -> "Dossier":
         return self
 
-    def __exit__(
-        self, exc_type: object | None, exc_val: object | None, exc_tb: object | None
-    ) -> None:
-        pass  # Needed for context manager
+    def __exit__(self, *_args: object) -> None:
+        pass
 
 
 def _ensure_structlog_configured() -> None:
